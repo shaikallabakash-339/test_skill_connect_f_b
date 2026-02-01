@@ -73,7 +73,8 @@ function UserDashboard() {
   // Fetch user data
   const fetchUserData = async (userData) => {
     try {
-      const res = await axios.get(`http://localhost:5000/api/user/${userData.email}`);
+      const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+      const res = await axios.get(`${apiUrl}/api/user/${userData.email}`);
       if (res.data.success) {
         setUser(res.data.user);
         setProfileImage(res.data.user.profile_image_url);
@@ -86,7 +87,8 @@ function UserDashboard() {
   // Fetch resumes
   const fetchResumes = async (email) => {
     try {
-      const res = await axios.get(`http://localhost:5000/api/resumes/${email}`);
+      const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+      const res = await axios.get(`${apiUrl}/api/resumes/${email}`);
       if (res.data.success) {
         setResumes(res.data.resumes);
       }
@@ -104,7 +106,8 @@ function UserDashboard() {
 
   const fetchAllUsers = async () => {
     try {
-      const res = await axios.get('http://localhost:5000/api/users');
+      const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+      const res = await axios.get(`${apiUrl}/api/users`);
       if (Array.isArray(res.data)) {
         setAllUsers(res.data.filter(u => u.email !== user?.email));
       }
@@ -116,7 +119,8 @@ function UserDashboard() {
   // Fetch conversations
   const fetchConversations = async (userId) => {
     try {
-      const res = await axios.get(`http://localhost:5000/api/conversations/${userId}`);
+      const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+      const res = await axios.get(`${apiUrl}/api/conversations/${userId}`);
       if (res.data.success) {
         setConversations(res.data.conversations);
         setConversationCount(res.data.conversations.length);
@@ -130,7 +134,8 @@ function UserDashboard() {
   const fetchMessages = async (senderId, receiverId) => {
     setMessageLoading(true);
     try {
-      const res = await axios.get(`http://localhost:5000/api/messages/${senderId}/${receiverId}`);
+      const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+      const res = await axios.get(`${apiUrl}/api/messages/${senderId}/${receiverId}`);
       if (res.data.success) {
         setCurrentMessages(res.data.messages);
         scrollToBottom();
@@ -145,7 +150,8 @@ function UserDashboard() {
   // Poll for new messages
   const pollMessages = async (senderId, receiverId) => {
     try {
-      const res = await axios.get(`http://localhost:5000/api/messages/${senderId}/${receiverId}`);
+      const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+      const res = await axios.get(`${apiUrl}/api/messages/${senderId}/${receiverId}`);
       if (res.data.success) {
         setCurrentMessages(res.data.messages);
       }
@@ -157,7 +163,8 @@ function UserDashboard() {
   // Fetch notifications
   const fetchNotifications = async (userId) => {
     try {
-      const res = await axios.get(`http://localhost:5000/api/notifications/${userId}`);
+      const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+      const res = await axios.get(`${apiUrl}/api/notifications/${userId}`);
       if (res.data.success) {
         setAdminMessages(res.data.notifications);
       }
@@ -172,7 +179,8 @@ function UserDashboard() {
     if (!messageInput.trim() || !selectedUser) return;
 
     try {
-      const res = await axios.post('http://localhost:5000/api/send-message', {
+      const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+      const res = await axios.post(`${apiUrl}/api/send-message`, {
         sender_id: user.id,
         receiver_id: selectedUser.id,
         message: messageInput,
@@ -210,9 +218,11 @@ function UserDashboard() {
     const formData = new FormData();
     formData.append('resume', file);
     formData.append('email', user.email);
+    formData.append('name', user.fullName || user.fullname);
 
     try {
-      const res = await axios.post('http://localhost:5000/api/upload-resume', formData, {
+      const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+      const res = await axios.post(`${apiUrl}/api/upload-resume`, formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
 

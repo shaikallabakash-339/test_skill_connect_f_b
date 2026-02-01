@@ -98,7 +98,8 @@ function AdminDashboard() {
   // Fetch users
   const fetchUsers = async () => {
     try {
-      const res = await axios.get('http://localhost:5000/api/users');
+      const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+      const res = await axios.get(`${apiUrl}/api/users`);
       if (Array.isArray(res.data)) {
         setUsers(res.data);
         setDashboardStats(prev => ({ ...prev, totalUsers: res.data.length }));
@@ -111,7 +112,8 @@ function AdminDashboard() {
   // Fetch user stats
   const fetchUserStats = async () => {
     try {
-      const res = await axios.get('http://localhost:5000/api/user-stats');
+      const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+      const res = await axios.get(`${apiUrl}/api/user-stats`);
       if (res.data.success) {
         setUserStats(res.data);
       }
@@ -123,7 +125,8 @@ function AdminDashboard() {
   // Fetch message stats
   const fetchMessageStats = async () => {
     try {
-      const res = await axios.get('http://localhost:5000/api/message-stats');
+      const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+      const res = await axios.get(`${apiUrl}/api/message-stats`);
       if (res.data.success) {
         setMessagesByStatus(res.data.categoryCount || {});
         setDashboardStats(prev => ({ ...prev, totalMessages: res.data.totalMessages || 0 }));
@@ -136,7 +139,8 @@ function AdminDashboard() {
   // Fetch donation stats
   const fetchDonationStats = async () => {
     try {
-      const res = await axios.get('http://localhost:5000/api/donations-stats');
+      const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+      const res = await axios.get(`${apiUrl}/api/donations-stats`);
       if (res.data.success) {
         setDonationStats(res.data.stats || []);
         setDashboardStats(prev => ({ ...prev, totalRevenue: res.data.totalRevenue || 0 }));
@@ -149,7 +153,8 @@ function AdminDashboard() {
   // Fetch old age homes stats
   const fetchOldAgeStats = async () => {
     try {
-      const res = await axios.get('http://localhost:5000/api/old-age-homes-stats');
+      const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+      const res = await axios.get(`${apiUrl}/api/old-age-homes-stats`);
       if (res.data.success) {
         setOldAgeStats(res.data.data || []);
       }
@@ -161,7 +166,8 @@ function AdminDashboard() {
   // Fetch orphan stats
   const fetchOrphanStats = async () => {
     try {
-      const res = await axios.get('http://localhost:5000/api/orphans-stats');
+      const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+      const res = await axios.get(`${apiUrl}/api/orphans-stats`);
       if (res.data.success) {
         setOrphanStats(res.data.data || []);
       }
@@ -173,7 +179,8 @@ function AdminDashboard() {
   // Fetch old age homes
   const fetchOldAgeHomes = async () => {
     try {
-      const res = await axios.get('http://localhost:5000/api/old-age-homes');
+      const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+      const res = await axios.get(`${apiUrl}/api/old-age-homes`);
       if (res.data.success) {
         setOldAgeHomes(res.data.data || []);
       }
@@ -185,7 +192,8 @@ function AdminDashboard() {
   // Fetch orphans
   const fetchOrphans = async () => {
     try {
-      const res = await axios.get('http://localhost:5000/api/orphans');
+      const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+      const res = await axios.get(`${apiUrl}/api/orphans`);
       if (res.data.success) {
         setOrphans(res.data.data || []);
       }
@@ -203,7 +211,8 @@ function AdminDashboard() {
     }
 
     try {
-      const res = await axios.post('http://localhost:5000/api/send-message', {
+      const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+      const res = await axios.post(`${apiUrl}/api/send-message`, {
         category: messageForm.status,
         message: messageForm.message,
       });
@@ -237,7 +246,8 @@ function AdminDashboard() {
     }
 
     try {
-      const res = await axios.post('http://localhost:5000/api/upload-qr', formData, {
+      const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+      const res = await axios.post(`${apiUrl}/api/upload-qr`, formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
 

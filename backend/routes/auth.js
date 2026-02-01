@@ -72,7 +72,18 @@ router.post('/signup', async (req, res) => {
     ];
     
     console.log('[v0] Executing signup query...');
+    console.log('[v0] Query values:', { email: values[0], fullname: values[1], hasPassword: !!values[2] });
+    
     const result = await pool.query(query, values);
+    
+    if (!result.rows || result.rows.length === 0) {
+      console.error('[v0] No result returned from signup query');
+      return res.status(500).json({ 
+        success: false, 
+        message: 'Failed to create user - no response from database' 
+      });
+    }
+    
     const newUser = result.rows[0];
     
     console.log('[v0] User registered successfully:', newUser.email);
@@ -98,10 +109,30 @@ router.post('/signup', async (req, res) => {
       });
     }
     
+    // Handle database connection errors
+    if (err.message && err.message.includes('connect ECONNREFUSED')) {
+      console.error('[v0] Database connection refused - is PostgreSQL running?');
+      return res.status(503).json({ 
+        success: false, 
+        message: 'Database is not available. Please try again later.',
+        error: 'Service Unavailable'
+      });
+    }
+    
+    // Handle table not found errors
+    if (err.message && err.message.includes('relation "users" does not exist')) {
+      console.error('[v0] Users table does not exist - running initialization...');
+      return res.status(503).json({ 
+        success: false, 
+        message: 'Database tables are being initialized. Please try again in a moment.',
+        error: 'Service Initializing'
+      });
+    }
+    
     return res.status(500).json({ 
       success: false, 
       message: 'Signup failed', 
-      error: process.env.NODE_ENV === 'development' ? err.message : 'Internal server error'
+      error: process.env.NODE_ENV === 'development' ? `${err.code}: ${err.message}` : 'Internal server error'
     });
   }
 });

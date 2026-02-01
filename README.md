@@ -36,41 +36,67 @@ skill-connect/
 
 ## Quick Start with Docker
 
-### 1. Clone and Navigate to Project
+### First Time Setup - Fresh Clean Start (Recommended)
 
 ```bash
+# Navigate to project
 cd skill-connect
+
+# Run the cleanup and restart script
+bash CLEANUP_AND_RESTART.sh
 ```
 
-### 2. Start All Services
+This automated script will:
+- Stop and remove all containers
+- Clean up all volumes and data
+- Kill any processes on conflicting ports (1025, 3000, 5000, 5432, 8025, 9000, 9001)
+- Rebuild all Docker images
+- Start all services with a fresh database
+- Wait for all services to be ready
+- Display the access URLs
+
+### Subsequent Restarts (After Initial Setup)
 
 ```bash
-docker-compose up --build
+# Simple restart
+docker-compose up -d
+
+# Wait 30-45 seconds for services to initialize
+# Check status
+docker-compose ps
 ```
 
-This will start:
+### Services That Start
+
 - PostgreSQL database (port 5432)
 - MinIO object storage (ports 9000, 9001)
 - Mailpit email testing (ports 1025, 8025)
 - Backend API (port 5000)
 - Frontend React app (port 3000)
 
-### 3. Access the Application
+### Access the Application
 
-- Frontend: http://localhost:3000
-- Backend API: http://localhost:5000
-- MinIO Web UI: http://localhost:9001
-- Mailpit Web UI: http://localhost:8025
+Once all services are ready:
 
-### 4. Test Sign Up
+- **Frontend**: http://localhost:3000
+- **Backend API**: http://localhost:5000
+- **MinIO Web UI**: http://localhost:9001 (user: minioadmin, pass: minioadmin123)
+- **Mailpit Web UI**: http://localhost:8025 (view sent emails)
+- **Database**: `localhost:5432` (user: admin, pass: admin123)
+
+### Test Sign Up
 
 1. Go to http://localhost:3000
-2. Sign up with your details
-3. Check PostgreSQL for stored data:
+2. Click "Sign Up" button
+3. Fill in the form with your details
+4. Click submit - data should be stored in PostgreSQL
+5. Check database:
 
 ```bash
-docker exec skill_connect_postgres psql -U admin -d skill_connect_db -c "SELECT email, fullname, status FROM users;"
+docker-compose exec postgres psql -U admin -d skill_connect_db -c "SELECT email, fullname, status FROM users;"
 ```
+
+Expected output: Your signup data should appear as a row in the users table
 
 ## Services Overview
 
@@ -146,35 +172,177 @@ docker exec -it skill_connect_postgres psql -U admin -d skill_connect_db
 
 ## Troubleshooting
 
-### Port Already in Use
-If port 5000 or 3000 is in use:
+### Signup Data Not Saving to Database
+
+**Problem**: Signup page shows success but data doesn't appear in PostgreSQL
+
+**Solutions**:
+
+1. **Check if database is initialized**:
 ```bash
-# Find and kill process using port
-lsof -i :5000
-kill -9 <PID>
+# Check database readiness
+curl http://localhost:5000/api/ready
+
+# Check backend logs for database errors
+docker-compose logs backend | grep -i "database\|error\|table"
+```
+
+2. **Verify users table exists**:
+```bash
+docker-compose exec postgres psql -U admin -d skill_connect_db -c "\dt users"
+```
+
+3. **Check if data is actually being inserted**:
+```bash
+docker-compose exec postgres psql -U admin -d skill_connect_db -c "SELECT COUNT(*) FROM users;"
+```
+
+4. **Force database re-initialization**:
+```bash
+# Clean restart
+docker-compose down -v
+bash CLEANUP_AND_RESTART.sh
+```
+
+### Port Already in Use
+
+**Error**: "Ports are not available" or "bind: address already in use"
+
+**Solution**:
+```bash
+# Use the cleanup script (handles all ports)
+bash CLEANUP_AND_RESTART.sh
+
+# Or manually kill processes on these ports:
+lsof -ti:1025 | xargs kill -9 2>/dev/null || true
+lsof -ti:3000 | xargs kill -9 2>/dev/null || true
+lsof -ti:5000 | xargs kill -9 2>/dev/null || true
+lsof -ti:5432 | xargs kill -9 2>/dev/null || true
+lsof -ti:8025 | xargs kill -9 2>/dev/null || true
+lsof -ti:9000 | xargs kill -9 2>/dev/null || true
+lsof -ti:9001 | xargs kill -9 2>/dev/null || true
 ```
 
 ### Database Connection Failed
-```bash
-# Check PostgreSQL is running
-docker ps | grep postgres
 
-# Check logs
+**Error**: "database does not exist" or "connection refused"
+
+**Solutions**:
+```bash
+# Check PostgreSQL is running and healthy
+docker-compose ps postgres
+
+# Check PostgreSQL logs
 docker-compose logs postgres
+
+# Verify database exists
+docker-compose exec postgres psql -U admin -l
+
+# If database missing, restart everything
+bash CLEANUP_AND_RESTART.sh
+```
+
+### Backend API Not Responding
+
+**Error**: "Cannot reach http://localhost:5000"
+
+**Solutions**:
+```bash
+# Check if backend container is running
+docker-compose ps backend
+
+# Check backend logs for errors
+docker-compose logs backend
+
+# Verify database connection in backend logs
+docker-compose logs backend | grep -i "database\|postgresql"
+
+# Restart backend only
+docker-compose restart backend
 ```
 
 ### Frontend Can't Connect to Backend
-- Ensure backend is running: `docker-compose logs backend`
-- Check frontend .env has correct API URL
-- Verify docker network: `docker network ls`
+
+**Error**: "Failed to connect to backend API" on frontend
+
+**Solutions**:
+1. Check frontend .env has correct API URL:
+```bash
+cat frontend/.env | grep REACT_APP_API_URL
+# Should show: REACT_APP_API_URL=http://backend:5000
+```
+
+2. Verify backend is running:
+```bash
+curl http://localhost:5000/health
+```
+
+3. Check frontend logs:
+```bash
+docker-compose logs frontend
+```
+
+4. Restart frontend:
+```bash
+docker-compose restart frontend
+```
+
+### Email (Mailpit) Not Working
+
+**Problem**: Emails not being sent during signup
+
+**Solution**:
+```bash
+# Check Mailpit is running
+docker-compose ps mailpit
+
+# View Mailpit web UI
+# Open http://localhost:8025 in browser
+
+# Check backend email config
+docker-compose exec backend printenv | grep MAIL
+
+# Verify backend can reach Mailpit
+docker-compose exec backend curl mailpit:8025
+```
+
+### MinIO (File Upload) Not Working
+
+**Problem**: Resume upload fails
+
+**Solution**:
+```bash
+# Check MinIO is running
+docker-compose ps minio
+
+# Check MinIO web UI
+# Open http://localhost:9001 (minioadmin / minioadmin123)
+
+# Check backend MinIO config
+docker-compose exec backend printenv | grep MINIO
+
+# Verify backend can reach MinIO
+docker-compose exec backend curl minio:9000
+```
 
 ### Container Build Fails
+
+**Error**: "failed to build" or Docker build errors
+
+**Solution**:
 ```bash
 # Clean rebuild
 docker-compose down
-docker system prune -a
-docker-compose up --build
+docker system prune -a -f
+docker volume prune -f
+bash CLEANUP_AND_RESTART.sh
 ```
+
+### Duplicate Extension Errors in Logs
+
+**Error**: "duplicate key value violates unique constraint" with "uuid-ossp"
+
+**Note**: This is normal on first run - database.js has been fixed to handle these gracefully. Server will continue running normally.
 
 ## API Endpoints
 

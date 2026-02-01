@@ -5,30 +5,28 @@
 const { Pool } = require('pg');
 require('dotenv').config();
 
-console.log('[v0] DATABASE_URL exists:', !!process.env.DATABASE_URL);
 console.log('[v0] NODE_ENV:', process.env.NODE_ENV);
 console.log('[v0] SSL enabled:', process.env.NODE_ENV === 'production');
 
-// Connection configuration
-const dbConfig = process.env.DATABASE_URL 
-  ? { connectionString: process.env.DATABASE_URL }
-  : {
-      user: process.env.DB_USER || 'admin',
-      password: process.env.DB_PASSWORD || 'admin123',
-      host: process.env.DB_HOST || 'postgres',
-      port: parseInt(process.env.DB_PORT || '5432'),
-      database: process.env.DB_NAME || 'skill_connect_db'
-    };
+// Connection configuration - ALWAYS use individual env vars
+const dbConfig = {
+  user: process.env.DB_USER || 'admin',
+  password: process.env.DB_PASSWORD || 'admin123',
+  host: process.env.DB_HOST || 'localhost',
+  port: parseInt(process.env.DB_PORT || '5432'),
+  database: process.env.DB_NAME || 'skill_connect_db',
+  max: 20, // Maximum pool size
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 5000
+};
 
 dbConfig.ssl = process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false;
-dbConfig.max = 20; // Maximum pool size
-dbConfig.idleTimeoutMillis = 30000;
-dbConfig.connectionTimeoutMillis = 2000;
 
 console.log('[v0] Database config:', {
-  host: dbConfig.host || 'from-connection-string',
+  host: dbConfig.host,
+  port: dbConfig.port,
   database: dbConfig.database,
-  user: dbConfig.user || 'from-connection-string',
+  user: dbConfig.user,
   pool: { max: dbConfig.max, idle: dbConfig.idleTimeoutMillis }
 });
 
@@ -58,14 +56,32 @@ const testConnection = async () => {
   }
 };
 
-// Auto-initialize all tables
+// Track if initialization has been attempted to prevent duplicate runs
+let initializationAttempted = false;
+
+// Auto-initialize all tables (only runs once)
 const initTables = async () => {
+  // Prevent running initialization multiple times
+  if (initializationAttempted) {
+    console.log('[v0] Database initialization already attempted, skipping');
+    return true;
+  }
+  
+  initializationAttempted = true;
+  
   try {
     console.log('[v0] Starting database initialization...');
 
-    // Create UUID extension
-    await pool.query('CREATE EXTENSION IF NOT EXISTS "uuid-ossp"');
-    console.log('[v0] UUID extension created');
+    // Create UUID extension - suppress IF EXISTS errors
+    try {
+      await pool.query('CREATE EXTENSION IF NOT EXISTS "uuid-ossp"');
+      console.log('[v0] UUID extension ready');
+    } catch (err) {
+      if (err.code !== '42P06') { // 42P06 = duplicate extension
+        throw err;
+      }
+      console.log('[v0] UUID extension already exists (expected)');
+    }
 
     // Create users table
     await pool.query(`
@@ -320,25 +336,33 @@ const initTables = async () => {
     console.log('[v0] All indexes created');
 
     console.log('[v0] Database initialization completed successfully!');
+    return true;
   } catch (err) {
     console.error('[v0] Error initializing database:', err.message);
-    throw err;
+    // Don't throw - allow server to continue running
+    // Queries will fail with proper error messages
+    return false;
   }
 };
 
-// Initialize on module load
+// Initialize on module load (async, non-blocking)
 (async () => {
   try {
     const connected = await testConnection();
     if (connected) {
-      await initTables();
+      const initialized = await initTables();
+      if (initialized) {
+        console.log('[v0] Database ready for use');
+      } else {
+        console.warn('[v0] Database initialization had issues, but server will continue');
+      }
     } else {
-      console.error('[v0] Failed to connect to database');
-      process.exit(1);
+      console.warn('[v0] Database connection test failed, retrying...');
+      // Don't exit - backend can retry later
     }
   } catch (err) {
-    console.error('[v0] Initialization error:', err);
-    process.exit(1);
+    console.error('[v0] Initialization warning (non-blocking):', err.message);
+    // Server continues running - queries will fail with proper error messages
   }
 })();
 

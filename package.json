@@ -13,7 +13,13 @@
     "docker-down": "docker-compose down",
     "docker-logs": "docker-compose logs -f"
   },
-  "dependencies": {},
+  "dependencies": {
+    "cors": "^2.8.6",
+    "dotenv": "^17.2.3",
+    "express": "^5.2.1",
+    "express-fileupload": "^1.5.2",
+    "pg": "^8.18.0"
+  },
   "devDependencies": {
     "concurrently": "^8.2.0"
   }

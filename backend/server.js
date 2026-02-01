@@ -60,9 +60,41 @@ app.use("/api", uploadRoutes)
 app.use("/api", donationRoutes)
 app.use("/api/subscriptions", subscriptionRoutes)
 
-// Basic Health Check
-app.get('/health', (req, res) => {
-  res.status(200).json({ status: 'OK' });
+// Enhanced Health Check with Database Status
+app.get('/health', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT NOW()');
+    res.status(200).json({ 
+      status: 'OK',
+      database: 'connected',
+      timestamp: result.rows[0].now
+    });
+  } catch (err) {
+    console.warn('[v0] Health check failed:', err.message);
+    res.status(503).json({ 
+      status: 'ERROR',
+      database: 'disconnected',
+      message: err.message
+    });
+  }
+});
+
+// Database ready endpoint - waits for DB to be ready
+app.get('/api/ready', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT COUNT(*) as count FROM users');
+    res.status(200).json({ 
+      status: 'ready',
+      database: 'available',
+      tables: 'initialized'
+    });
+  } catch (err) {
+    res.status(503).json({ 
+      status: 'not-ready',
+      message: 'Database initialization in progress',
+      error: err.message
+    });
+  }
 });
 
 app.listen(PORT, () => {

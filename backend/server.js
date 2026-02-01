@@ -13,10 +13,15 @@ const messageRoutes = require("./routes/messages")
 const uploadRoutes = require("./routes/admin")
 const donationRoutes = require("./routes/donations")
 const subscriptionRoutes = require("./routes/subscriptions")
+const { pool, testConnection } = require("./config/database")
 require("dotenv").config()
 
 const app = express()
 const PORT = process.env.PORT || 5000;
+
+console.log('[v0] Starting Skill Connect Backend Server...');
+console.log('[v0] Node environment:', process.env.NODE_ENV || 'development');
+console.log('[v0] Server will run on port:', PORT);
 
 // Use /tmp directory for serverless environments like Vercel
 const tempDir = process.env.TEMP_DIR || path.join('/tmp', 'uploads');

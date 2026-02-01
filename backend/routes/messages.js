@@ -5,29 +5,62 @@
 // server/routes/messages.js
 const express = require('express');
 const router = express.Router();
-const pool = require('../config/db');
+const { pool } = require('../config/database');
 const { sendEmailNotification } = require('../utils/email');
+const { sanitizeString } = require('../utils/validation');
 
 router.post('/send-message', async (req, res) => {
   const { category, message } = req.body;
-  const timestamp = new Date().toISOString();
+  
   try {
-    const insertQuery = 'INSERT INTO messages (category, message, timestamp) VALUES ($1, $2, $3) RETURNING *';
-    const insertResult = await pool.query(insertQuery, [category, message, timestamp]);
+    console.log('[v0] Sending message for category:', category);
+    
+    if (!category || !message) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Category and message are required' 
+      });
+    }
+
+    const timestamp = new Date().toISOString();
+    const insertQuery = `
+      INSERT INTO messages (category, message, timestamp) 
+      VALUES ($1, $2, $3) 
+      RETURNING id, category, message, timestamp
+    `;
+    const insertResult = await pool.query(insertQuery, [
+      sanitizeString(category), 
+      sanitizeString(message), 
+      timestamp
+    ]);
 
     // Fetch users in the specified category for email notification
-    const usersQuery = 'SELECT email FROM users WHERE status = $1';
+    const usersQuery = 'SELECT email, fullname FROM users WHERE status = $1';
     const usersResult = await pool.query(usersQuery, [category]);
 
-    // Send email to all users in the category
+    console.log('[v0] Found', usersResult.rows.length, 'users to notify');
+
+    // Send email to all users in the category (async, non-blocking)
     usersResult.rows.forEach(user => {
-      sendEmailNotification(user.email, message);
+      sendEmailNotification(user.email, message).catch(err => {
+        console.error('[v0] Email sending failed for:', user.email, err.message);
+      });
     });
 
-    res.status(200).json({ success: true, message: 'Message sent successfully' });
+    console.log('[v0] Message sent successfully');
+    res.status(200).json({ 
+      success: true, 
+      message: 'Message sent successfully',
+      messageId: insertResult.rows[0].id,
+      recipientCount: usersResult.rows.length
+    });
   } catch (err) {
-    console.error('CockroachDB error:', err);
-    res.status(500).json({ success: false, message: 'Error sending message', error: err.message });
+    console.error('[v0] Error sending message:', err);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Error sending message',
+      error: process.env.NODE_ENV === 'development' ? err.message : 'Internal server error'
+    });
   }
 });
 

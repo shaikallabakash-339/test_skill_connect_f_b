@@ -1,16 +1,27 @@
-import React, { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { useNavigate, Link, useLocation } from 'react-router-dom';
 import axios from 'axios';
 import { motion } from 'framer-motion';
 import { Mail, Lock, Eye, EyeOff, Sparkles } from 'lucide-react';
+import { showToast } from '../utils/toast';
 import '../styles/login.css';
+import '../styles/toast.css';
 
 function Login() {
   const [formData, setFormData] = useState({ email: '', password: '' });
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
   const navigate = useNavigate();
+  const location = useLocation();
+
+  // Show message from signup redirect
+  useEffect(() => {
+    if (location.state?.message) {
+      showToast(location.state.message, 'info', 3000);
+    }
+  }, [location.state]);
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -21,9 +32,12 @@ function Login() {
     e.preventDefault();
     setIsLoading(true);
     setError('');
+    setSuccessMessage('');
 
     if (!formData.email || !formData.password) {
-      setError('Please fill in all fields');
+      const errMsg = 'Please fill in all fields';
+      setError(errMsg);
+      showToast(errMsg, 'error', 3000);
       setIsLoading(false);
       return;
     }
@@ -31,18 +45,49 @@ function Login() {
     try {
       const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5000';
       console.log('[v0] Logging in with API:', apiUrl);
+      
       const res = await axios.post(`${apiUrl}/api/login`, formData);
+      
       if (res.data.success) {
+        console.log('[v0] Login successful:', res.data.user.email);
+        
+        // Show success toast
+        const successMsg = `Welcome back, ${res.data.user.fullName || res.data.user.email}! Redirecting...`;
+        showToast(successMsg, 'success', 2000);
+        
+        // Store user data
         localStorage.setItem('user', JSON.stringify(res.data.user));
         localStorage.setItem('token', res.data.token || '');
-        navigate('/user-dashboard', { state: { user: res.data.user } });
+        setSuccessMessage(successMsg);
+        
+        // Redirect after toast
+        setTimeout(() => {
+          navigate('/user-dashboard', { state: { user: res.data.user } });
+        }, 2000);
       } else {
-        setError(res.data.message || 'Login failed');
+        const errorMsg = res.data.message || 'Login failed. Please try again.';
+        console.log('[v0] Login failed:', errorMsg);
+        setError(errorMsg);
+        showToast(errorMsg, 'error', 4000);
       }
     } catch (err) {
       console.error('[v0] Login error:', err);
       console.error('[v0] Error response:', err.response?.data);
-      setError(err.response?.data?.message || 'Login failed. Please try again.');
+      
+      let errorMsg = 'Login failed. Please try again.';
+      
+      if (err.response?.data?.message) {
+        errorMsg = err.response.data.message;
+      } else if (err.response?.status === 401) {
+        errorMsg = 'Invalid email or password. Please try again.';
+      } else if (err.response?.status === 503) {
+        errorMsg = 'Server is not ready. Please try again in a moment.';
+      } else if (err.message === 'Network Error') {
+        errorMsg = 'Cannot connect to server. Please check your connection.';
+      }
+      
+      setError(errorMsg);
+      showToast(errorMsg, 'error', 5000);
     } finally {
       setIsLoading(false);
     }

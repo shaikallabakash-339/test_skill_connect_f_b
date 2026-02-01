@@ -1,9 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import axios from 'axios';
 import { motion } from 'framer-motion';
 import { User, Mail, Lock, Phone, MapPin, Briefcase, GraduationCap, Calendar, ArrowRight } from 'lucide-react';
+import { showToast } from '../utils/toast';
 import '../styles/signup.css';
+import '../styles/toast.css';
 
 function Signup() {
   const [formData, setFormData] = useState({
@@ -71,15 +73,44 @@ function Signup() {
       const res = await axios.post(`${apiUrl}/api/signup`, formData);
       
       if (res.data.success) {
+        console.log('[v0] Signup successful:', res.data.user);
+        
+        // Show success toast
+        showToast('Account created successfully! Redirecting to login...', 'success', 3000);
+        
+        // Store user data
         localStorage.setItem('user', JSON.stringify(res.data.user));
-        navigate('/login', { state: { success: 'Signup successful! Please login.' } });
+        
+        // Redirect to login after toast
+        setTimeout(() => {
+          navigate('/login', { state: { message: 'Account created! Please login with your credentials.' } });
+        }, 3000);
       } else {
-        setError(res.data.message || 'Signup failed');
+        console.log('[v0] Signup failed:', res.data.message);
+        const errorMsg = res.data.message || 'Signup failed. Please try again.';
+        setError(errorMsg);
+        showToast(errorMsg, 'error', 4000);
       }
     } catch (err) {
       console.error('[v0] Signup error:', err);
       console.error('[v0] Error response:', err.response?.data);
-      setError(err.response?.data?.message || err.response?.data?.detail || 'Signup failed. Please try again.');
+      
+      let errorMsg = 'Signup failed. Please try again.';
+      
+      if (err.response?.data?.message) {
+        errorMsg = err.response.data.message;
+      } else if (err.response?.data?.detail) {
+        errorMsg = err.response.data.detail;
+      } else if (err.response?.status === 409) {
+        errorMsg = 'Email already exists. Please use a different email.';
+      } else if (err.response?.status === 503) {
+        errorMsg = 'Server is not ready. Please try again in a moment.';
+      } else if (err.message === 'Network Error') {
+        errorMsg = 'Cannot connect to server. Please check your connection.';
+      }
+      
+      setError(errorMsg);
+      showToast(errorMsg, 'error', 5000);
     } finally {
       setIsSubmitting(false);
     }

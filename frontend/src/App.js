@@ -16,6 +16,7 @@ import OldAgeHomes from './pages/OldAgeHomes';
 import Orphans from './pages/Orphans';
 import Navbar from './components/Navbar';
 import './styles/App.css';
+import './styles/toast.css';
 
 function App() {
   return (

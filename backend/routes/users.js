@@ -7,6 +7,7 @@ const express = require('express');
 const router = express.Router();
 const { pool } = require('../config/database');
 const { sanitizeEmail, sanitizeString } = require('../utils/validation');
+const { uploadBuffer } = require('../utils/minio');
 const pdfParse = require('pdf-parse');
 const fs = require('fs');
 const path = require('path');
@@ -102,60 +103,78 @@ router.post('/upload-resume', async (req, res) => {
     }
 
     console.log('[v0] Processing resume upload for:', email);
+    console.log('[v0] File:', resumeFile.name, 'Size:', resumeFile.size, 'Type:', resumeFile.mimetype);
 
-    // Check file size (less than 2MB)
-    if (resumeFile.size > 2 * 1024 * 1024) {
-      return res.status(400).json({ success: false, message: 'File size exceeds 2MB limit' });
+    // Check file size (less than 5MB)
+    if (resumeFile.size > 5 * 1024 * 1024) {
+      return res.status(400).json({ success: false, message: 'File size exceeds 5MB limit' });
     }
 
-    // Use temporary file path provided by express-fileupload
-    const tempPath = resumeFile.tempFilePath || path.join('/tmp', 'uploads', resumeFile.name);
-    console.log('[v0] Processing file at:', tempPath);
-
-    // If file is not already saved to temp path, save it
-    if (!fs.existsSync(tempPath)) {
-      await resumeFile.mv(tempPath);
+    // Check file type - allow PDF, DOCX, DOC
+    const allowedMimes = ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
+    if (!allowedMimes.includes(resumeFile.mimetype)) {
+      return res.status(400).json({ success: false, message: 'Only PDF and Word documents allowed' });
     }
 
-    // Extract text from PDF
+    // Upload to MinIO using buffer
+    console.log('[v0] Uploading to MinIO...');
+    const minioResult = await uploadBuffer(
+      resumeFile.data,
+      `${Date.now()}-${email}-${resumeFile.name}`,
+      resumeFile.mimetype
+    );
+
+    if (!minioResult.success) {
+      console.error('[v0] MinIO upload failed:', minioResult.error);
+      return res.status(500).json({ 
+        success: false, 
+        message: 'Failed to upload to storage', 
+        error: minioResult.error 
+      });
+    }
+
+    console.log('[v0] MinIO upload successful:', minioResult.url);
+
+    // Extract text from PDF for searching (optional)
     let resumeData = '';
     if (resumeFile.mimetype === 'application/pdf') {
-      const dataBuffer = fs.readFileSync(tempPath);
-      const data = await pdfParse(dataBuffer);
-      resumeData = data.text;
-      console.log('[v0] PDF parsed successfully, extracted', resumeData.length, 'characters');
+      try {
+        const data = await pdfParse(resumeFile.data);
+        resumeData = data.text;
+        console.log('[v0] PDF parsed, extracted', resumeData.length, 'characters');
+      } catch (err) {
+        console.warn('[v0] PDF parsing failed (non-critical):', err.message);
+        resumeData = 'Text extraction not available';
+      }
     } else {
-      resumeData = 'Text extraction for this file type is not supported yet.';
+      resumeData = 'Text extraction for this file type not supported yet';
     }
 
-    // Delete temporary file if it exists
-    if (fs.existsSync(tempPath)) {
-      fs.unlinkSync(tempPath);
-      console.log('[v0] Temporary file cleaned up');
-    }
-
-    // Store in PostgreSQL
+    // Store in PostgreSQL with MinIO URL
     const query = `
-      INSERT INTO resumes (email, name, resume_data, resume_filename, file_type, file_size)
-      VALUES ($1, $2, $3, $4, $5, $6)
+      INSERT INTO resumes (email, name, resume_data, resume_filename, file_type, file_size, file_url)
+      VALUES ($1, $2, $3, $4, $5, $6, $7)
       ON CONFLICT (email) DO UPDATE SET 
         name = $2, 
         resume_data = $3,
         resume_filename = $4,
         file_size = $6,
+        file_url = $7,
         updated_at = NOW()
-      RETURNING id, email, name, file_size, created_at
+      RETURNING id, email, name, file_size, file_url, created_at
     `;
+    
     const result = await pool.query(query, [
       sanitizeEmail(email), 
       sanitizeString(name), 
       resumeData,
       resumeFile.name,
       resumeFile.mimetype,
-      resumeFile.size
+      resumeFile.size,
+      minioResult.url
     ]);
     
-    console.log('[v0] Resume uploaded successfully for:', email);
+    console.log('[v0] Resume stored in database for:', email);
     res.status(200).json({ 
       success: true, 
       message: 'Resume uploaded successfully',
@@ -179,14 +198,18 @@ router.get('/user-resume', async (req, res) => {
     }
     
     console.log('[v0] Fetching resume for:', email);
-    const query = 'SELECT id, email, name, resume_data, resume_filename, created_at FROM resumes WHERE email = $1';
+    const query = `
+      SELECT id, email, name, resume_data, resume_filename, file_type, file_size, file_url, created_at 
+      FROM resumes 
+      WHERE email = $1
+    `;
     const result = await pool.query(query, [sanitizeEmail(email)]);
     
     if (result.rows.length === 0) {
       return res.status(404).json({ success: false, message: 'No resume found for this user' });
     }
     
-    console.log('[v0] Resume found for:', email);
+    console.log('[v0] Resume found for:', email, '- URL:', result.rows[0].file_url);
     res.status(200).json({ 
       success: true, 
       resume: result.rows[0]

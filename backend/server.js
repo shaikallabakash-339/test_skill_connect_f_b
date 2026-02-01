@@ -14,6 +14,7 @@ const uploadRoutes = require("./routes/admin")
 const donationRoutes = require("./routes/donations")
 const subscriptionRoutes = require("./routes/subscriptions")
 const { pool, testConnection } = require("./config/database")
+const { initializeEmailService } = require("./utils/emailService")
 require("dotenv").config()
 
 const app = express()

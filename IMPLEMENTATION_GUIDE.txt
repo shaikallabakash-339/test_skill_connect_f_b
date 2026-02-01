@@ -1,0 +1,440 @@
+===============================================================================
+SKILL CONNECT - COMPREHENSIVE IMPLEMENTATION GUIDE
+===============================================================================
+
+PROJECT SCOPE: Complete redesign with MinIO, SendPulse email, real-time messaging,
+and stunning UI for all pages.
+
+===============================================================================
+PHASE 1: BACKEND INFRASTRUCTURE FIXES
+===============================================================================
+
+1. MinIO Upload Fix (Resume, Images, QR Codes)
+   - File: /backend/routes/users.js
+   - Issue: Resume upload returns "failed to upload"
+   - Solution: Use uploadBuffer() instead of uploadFile() for express-fileupload
+   - Implementation:
+     * Read file from req.files[].data (buffer)
+     * Pass to uploadBuffer() with proper contentType
+     * Store URL in PostgreSQL resume table
+     * Return URL in response
+
+2. SendPulse Email Integration
+   - File: /backend/utils/emailService.js (ALREADY IMPLEMENTED)
+   - Features:
+     * Max 300 users per month
+     * Max 12,000 emails per month
+     * Automatic limit checking before sending
+     * Fallback to Mailpit for local testing
+   - Configure in docker-compose:
+     * SENDPULSE_USER: your-email@sendpulse.com
+     * SENDPULSE_PASS: your-api-key
+   - Call: sendEmail(to, subject, htmlContent, userId)
+
+3. PostgreSQL Schema Updates
+   - New tables needed:
+     * email_logs (track email sending for limits)
+     * user_messages (real-time chat storage)
+     * user_connections (track who user can message - max 5 free)
+     * admin_notifications (messages from admin to users)
+
+4. Real-Time Messaging with PostgreSQL Polling
+   - Frontend polls /api/messages/:senderId/:receiverId every 3 seconds
+   - Backend fetches from user_messages table
+   - Store: sender_id, receiver_id, message_text, created_at, is_read
+   - Limit: Free users can chat with max 5 other users
+
+===============================================================================
+PHASE 2: FRONTEND - USER DASHBOARD REDESIGN
+===============================================================================
+
+Layout Structure:
+├── Top Navbar (Logo, Search, Logout on right)
+├── Left Sidebar
+│   ├── User Profile Photo (circular)
+│   ├── User Name
+│   ├── Status badge (Employed/Pursuing/Graduated)
+│   ├── Dropdown Menu:
+│   │   ├── View Profile
+│   │   ├── Edit Profile
+│   │   ├── Settings
+│   │   └── Logout
+│   └── Navigation Menu:
+│       ├── Home
+│       ├── Messages
+│       ├── Notifications
+│       └── Subscriptions
+│
+├── Main Content Area
+│   ├── Welcome Section: "Welcome to professional networking of Skill Connect"
+│   ├── Top Companies List (fetch from database)
+│   ├── People to Connect
+│   │   ├── Search Bar
+│   │   ├── User Cards (name, company, status)
+│   │   └── Connect Button
+│   │
+│   ├── Messages Tab:
+│   │   ├── Conversation List (left)
+│   │   │   ├── Search conversations
+│   │   │   ├── Show max 5 conversations (free tier)
+│   │   │   └── "Upgrade to Premium" button
+│   │   │
+│   │   └── Chat Area (right)
+│   │       ├── Selected user info
+│   │       ├── Messages display
+│   │       ├── Real-time polling
+│   │       └── Message input + Send button
+│   │
+│   ├── Resumes Tab:
+│   │   ├── Upload resume button
+│   │   ├── Display uploaded resumes from MinIO
+│   │   ├── Supported: PDF, DOCX, DOC
+│   │   └── Download/Delete options
+│   │
+│   └── Notifications Tab:
+│       ├── Admin messages
+│       ├── New connections
+│       └── Message notifications
+
+Features to Add:
+1. Company Name field (optional) in signup
+2. User profile photo upload (store in MinIO, URL in PostgreSQL)
+3. Search people by name/company/status
+4. Send connection requests (limit 5 for free, unlimited for premium)
+5. Real-time message polling
+6. Admin notification display
+7. Resume preview/download from MinIO
+
+===============================================================================
+PHASE 3: ADMIN DASHBOARD REDESIGN
+===============================================================================
+
+Left Sidebar Menu Items (linked to PostgreSQL):
+├── Dashboard (stats from database)
+├── Users Management
+│   ├── View all users
+│   ├── Search/Filter users
+│   ├── User details modal
+│   ├── Edit user status
+│   └── Delete user
+│
+├── Messages
+│   ├── Send bulk messages (by category: employed/pursuing/graduated)
+│   ├── Message templates
+│   ├── View sent messages
+│   └── Email logs
+│
+├── Donations
+│   ├── View donation stats
+│   ├── View donation history
+│   └── Generate donation reports
+│
+├── Old Age Homes Management
+│   ├── Add/Edit homes
+│   ├── Upload home images (to MinIO)
+│   ├── Set details (name, location, description)
+│   ├── Manage donations for homes
+│   └── View in Old Age Homes page
+│
+├── Orphans Management
+│   ├── Add/Edit orphans
+│   ├── Upload photos (to MinIO)
+│   ├── Set details (name, age, story)
+│   ├── Manage donations for orphans
+│   └── View in Orphans page
+│
+├── QR Code Management
+│   ├── Generate/Upload QR codes
+│   ├── Link to donation forms
+│   ├── Store in MinIO
+│   └── Display URL
+│
+├── Subscriptions Management
+│   ├── View active subscriptions
+│   ├── View subscription stats
+│   └── Manage subscription plans
+│
+└── Reports
+    ├── User statistics
+    ├── Email sending statistics
+    ├── Donation reports
+    └── Export data
+
+Features:
+- Dashboard with real-time stats (fetch from PostgreSQL)
+- Bulk email sending with limit enforcement
+- Image upload to MinIO for homes/orphans
+- QR code generation and storage
+- Message tracking and history
+- Subscription tier management
+
+===============================================================================
+PHASE 4: OLD AGE HOMES & ORPHANS PAGES
+===============================================================================
+
+Data Flow:
+1. Admin uploads images → MinIO
+2. Admin stores data (name, location, story) → PostgreSQL
+3. URL stored in PostgreSQL
+4. Frontend fetches from PostgreSQL
+5. Display images from MinIO URLs
+
+Features:
+- Donation buttons with QR code link
+- Upload payment screenshot to MinIO after donation
+- Store donation records in PostgreSQL
+- Display all homes/orphans in stunning grid layout
+- Search and filter by location/name
+
+===============================================================================
+PHASE 5: PAYMENT & PREMIUM SUBSCRIPTION
+===============================================================================
+
+Features:
+- Display QR code for donation/payment
+- User uploads screenshot after payment
+- Screenshot stored in MinIO
+- Admin receives email notification
+- Payment record stored in PostgreSQL
+- Premium tier unlocks: unlimited messaging, enhanced features
+
+===============================================================================
+DATABASE SCHEMA ADDITIONS
+===============================================================================
+
+-- Email logs table
+CREATE TABLE email_logs (
+  id SERIAL PRIMARY KEY,
+  user_id INTEGER REFERENCES users(id),
+  recipient_email VARCHAR(255),
+  subject VARCHAR(255),
+  service VARCHAR(50), -- 'sendpulse', 'mailpit', 'minio'
+  status VARCHAR(50) DEFAULT 'sent',
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Real-time messages table
+CREATE TABLE user_messages (
+  id SERIAL PRIMARY KEY,
+  sender_id INTEGER REFERENCES users(id),
+  receiver_id INTEGER REFERENCES users(id),
+  message_text TEXT,
+  is_read BOOLEAN DEFAULT FALSE,
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- User connections (for limiting free tier)
+CREATE TABLE user_connections (
+  id SERIAL PRIMARY KEY,
+  user_id INTEGER REFERENCES users(id),
+  connected_with_id INTEGER REFERENCES users(id),
+  status VARCHAR(50) DEFAULT 'pending', -- 'pending', 'accepted', 'rejected'
+  created_at TIMESTAMP DEFAULT NOW(),
+  UNIQUE(user_id, connected_with_id)
+);
+
+-- Admin notifications
+CREATE TABLE admin_notifications (
+  id SERIAL PRIMARY KEY,
+  user_id INTEGER REFERENCES users(id),
+  admin_id INTEGER REFERENCES users(id),
+  title VARCHAR(255),
+  message TEXT,
+  is_read BOOLEAN DEFAULT FALSE,
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Donations
+CREATE TABLE donations (
+  id SERIAL PRIMARY KEY,
+  user_id INTEGER REFERENCES users(id),
+  amount DECIMAL(10, 2),
+  donation_type VARCHAR(50), -- 'home', 'orphan', 'general'
+  entity_id INTEGER, -- ID of home/orphan
+  payment_screenshot_url VARCHAR(500), -- MinIO URL
+  status VARCHAR(50) DEFAULT 'pending', -- 'pending', 'confirmed'
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Old age homes
+CREATE TABLE old_age_homes (
+  id SERIAL PRIMARY KEY,
+  name VARCHAR(255),
+  location VARCHAR(255),
+  description TEXT,
+  image_url VARCHAR(500), -- MinIO URL
+  donation_qr_url VARCHAR(500), -- MinIO URL
+  total_residents INTEGER,
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Orphans
+CREATE TABLE orphans (
+  id SERIAL PRIMARY KEY,
+  name VARCHAR(255),
+  age INTEGER,
+  story TEXT,
+  image_url VARCHAR(500), -- MinIO URL
+  donation_qr_url VARCHAR(500), -- MinIO URL
+  status VARCHAR(50) DEFAULT 'active',
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+===============================================================================
+SENDPULSE SETUP INSTRUCTIONS
+===============================================================================
+
+1. Create Account at sendpulse.com
+2. Get API Credentials:
+   - Login → Settings → SMTP
+   - Copy SMTP Username (email)
+   - Copy SMTP Password (API key)
+
+3. Add to docker-compose.yml:
+   environment:
+     SENDPULSE_USER: your-email@sendpulse.com
+     SENDPULSE_PASS: your-api-key-here
+     SENDPULSE_SMTP_HOST: smtp.sendpulse.com
+     SENDPULSE_SMTP_PORT: 587
+
+4. Test Email Sending:
+   curl -X POST http://localhost:5000/api/test-email \
+     -H "Content-Type: application/json" \
+     -d '{"email":"test@example.com"}'
+
+===============================================================================
+FILE UPDATES NEEDED
+===============================================================================
+
+Backend:
+1. /backend/routes/users.js
+   - Fix resume upload to use MinIO buffer upload
+   - Add profile image upload endpoint
+
+2. /backend/routes/admin.js
+   - Add endpoints for all sidebar menu items
+   - Link to PostgreSQL tables
+   - Add image upload for homes/orphans
+   - Add QR code generation
+
+3. /backend/routes/messages.js
+   - Add bulk email sending endpoint
+   - Add message notification system
+
+4. /backend/server.js
+   - Initialize email service on startup
+
+Frontend:
+1. /frontend/src/pages/UserDashboard.js
+   - Complete redesign with new layout
+   - Left sidebar with profile menu
+   - Search and connect features
+   - Real-time messaging
+
+2. /frontend/src/pages/AdminDashboard.js
+   - Complete redesign with left menu
+   - Link all menu items to database
+   - Add image upload forms
+   - Add QR code management
+
+3. /frontend/src/pages/OldAgeHomes.js
+   - Fetch data from PostgreSQL
+   - Display images from MinIO
+   - Add donation button with QR
+
+4. /frontend/src/pages/Orphans.js
+   - Fetch data from PostgreSQL
+   - Display images from MinIO
+   - Add donation button with QR
+
+5. /frontend/src/pages/Signup.js
+   - Add company name field (optional)
+   - Add profile picture upload
+
+===============================================================================
+TESTING CHECKLIST
+===============================================================================
+
+Database:
+- [ ] PostgreSQL connected and tables created
+- [ ] All new tables initialized
+- [ ] Sample data inserted
+
+MinIO:
+- [ ] MinIO container running
+- [ ] Bucket created
+- [ ] Public access configured
+- [ ] Resume upload works
+- [ ] Image upload works
+- [ ] QR code storage works
+
+Email:
+- [ ] SendPulse configured
+- [ ] Test email sends successfully
+- [ ] Mailpit fallback works (local)
+- [ ] Email logs recorded
+- [ ] Limits enforced (300 users, 12000 emails)
+
+Frontend:
+- [ ] UserDashboard loads
+- [ ] Profile menu works
+- [ ] Search users works
+- [ ] Messages send and receive
+- [ ] Real-time polling works
+- [ ] Resumes display from MinIO
+- [ ] Profile image displays
+- [ ] Admin dashboard loads
+- [ ] All menu items linked
+- [ ] Homes/Orphans pages display
+- [ ] Donation QR codes show
+- [ ] Screenshot upload works
+
+Backend APIs:
+- [ ] /api/signup works with company name
+- [ ] /api/upload-resume stores in MinIO
+- [ ] /api/upload-profile-image stores in MinIO
+- [ ] /api/messages/:senderId/:receiverId works
+- [ ] /api/send-message works
+- [ ] /api/admin/send-bulk-messages works with limits
+- [ ] /api/admin/users lists all
+- [ ] /api/admin/homes lists/creates
+- [ ] /api/admin/orphans lists/creates
+- [ ] /api/donation processes and stores
+
+===============================================================================
+DEPLOYMENT CHECKLIST
+===============================================================================
+
+1. Environment Variables (.env):
+   - DB_HOST, DB_USER, DB_PASSWORD, DB_NAME
+   - MINIO_ENDPOINT, MINIO_ACCESS_KEY, MINIO_SECRET_KEY
+   - SENDPULSE_USER, SENDPULSE_PASS
+   - FRONTEND_URL set correctly
+
+2. Docker:
+   - All containers running
+   - Networks configured
+   - Volumes persisted
+
+3. SSL Certificate:
+   - For production, enable SSL
+   - Update URLs to https://
+
+4. Backups:
+   - PostgreSQL backups scheduled
+   - MinIO backups configured
+
+===============================================================================
+SENDPULSE COST & LIMITS
+===============================================================================
+
+- Free Plan: 300 users/month, 12,000 emails/month
+- Premium: 10,000+ users/month, 600,000+ emails/month
+- Cost: Scales with users
+
+For app: If users exceed 300, send only to first 300
+If emails exceed 12,000/month, queue rest for next month
+
+===============================================================================
+END OF IMPLEMENTATION GUIDE
+===============================================================================

@@ -1,0 +1,476 @@
+================================================================================
+SKILL CONNECT - COMPLETE SETUP & IMPLEMENTATION GUIDE
+================================================================================
+
+CRITICAL: Run ALL commands from the project root directory
+
+================================================================================
+PART 1: INITIAL SETUP (First Time Only)
+================================================================================
+
+Step 1: Clean Docker Environment
+---------------------------------
+docker-compose down -v
+docker system prune -a -f
+docker volume prune -f
+
+
+Step 2: Start Fresh Containers
+-------------------------------
+docker-compose up -d --build
+
+Wait 60 seconds for PostgreSQL to initialize
+
+
+Step 3: Run Database Migrations
+--------------------------------
+# Method 1: Direct SQL execution (Recommended)
+docker-compose exec postgres psql -U admin -d skill_connect_db < scripts/init-db.sql
+
+# Method 2: Additional tables
+docker-compose exec postgres psql -U admin -d skill_connect_db < scripts/create-additional-tables.sql
+
+
+Step 4: Verify Database Setup
+------------------------------
+docker-compose exec postgres psql -U admin -d skill_connect_db -c "\dt"
+
+Should show tables: users, resumes, messages, email_logs, donations, old_age_homes, orphans, subscriptions
+
+
+Step 5: Verify All Services
+----------------------------
+docker-compose ps
+
+All containers should show "Up" status
+
+
+================================================================================
+PART 2: APPLICATION ACCESS
+================================================================================
+
+Frontend:    http://localhost:3000
+Backend:     http://localhost:5000
+MinIO Web:   http://localhost:9001 (minioadmin / minioadmin123)
+Mailpit:     http://localhost:8025
+PostgreSQL:  localhost:5432 (admin / admin123)
+
+
+================================================================================
+PART 3: TESTING THE APPLICATION
+================================================================================
+
+1. Test Signup
+--------------
+- Go to http://localhost:3000
+- Click "Sign Up"
+- Fill in all required fields
+- Click "Create Account"
+- Should see green toast: "Account created successfully!"
+- Should be redirected to login
+- Verify data in database:
+  docker-compose exec postgres psql -U admin -d skill_connect_db -c "SELECT email, fullname, status FROM users;"
+
+
+2. Test Login
+-------------
+- Use credentials from signup
+- Click "Login"
+- Should see green toast: "Welcome back, [Name]!"
+- Should be redirected to User Dashboard
+- Verify in database:
+  docker-compose exec postgres psql -U admin -d skill_connect_db -c "SELECT email, is_logged_in FROM users ORDER BY created_at DESC LIMIT 1;"
+
+
+3. Test Resume Upload
+---------------------
+- Login to User Dashboard
+- Go to "Resume" section
+- Click "Upload Resume"
+- Select a PDF file (max 5MB)
+- Should see green toast: "Resume uploaded successfully"
+- Verify in MinIO:
+  - Go to http://localhost:9001
+  - Login with minioadmin/minioadmin123
+  - Should see resumes folder with your file
+- Verify in database:
+  docker-compose exec postgres psql -U admin -d skill_connect_db -c "SELECT email, file_url FROM resumes;"
+
+
+4. Test Email Service
+---------------------
+- After signup/important action, check Mailpit
+- Go to http://localhost:8025
+- Should see "New user registered: [email]" email
+- Click email to view content
+
+
+================================================================================
+PART 4: TROUBLESHOOTING
+================================================================================
+
+Issue: "Cannot connect to server" on signup/login
+Solution:
+  - Check backend logs: docker-compose logs backend
+  - Verify backend is running: docker-compose ps
+  - Check database connection: docker-compose exec postgres psql -U admin -d skill_connect_db -c "SELECT 1"
+  - Restart backend: docker-compose restart backend
+
+
+Issue: Resume upload fails
+Solution:
+  - Check MinIO is running: docker-compose ps minio
+  - Check MinIO logs: docker-compose logs minio
+  - Verify MinIO is accessible: curl http://localhost:9000
+  - Check file size is < 5MB
+  - Check file is PDF/DOCX/DOC
+
+
+Issue: Emails not sending
+Solution:
+  - Check Mailpit is running: docker-compose ps mailpit
+  - Check backend email config: docker-compose exec backend printenv | grep MAIL
+  - Check backend logs for email errors: docker-compose logs backend | grep -i mail
+  - Verify Mailpit is accessible: http://localhost:8025
+
+
+Issue: Database tables not found
+Solution:
+  - Verify tables exist: docker-compose exec postgres psql -U admin -d skill_connect_db -c "\dt"
+  - If missing, run migrations again:
+    docker-compose exec postgres psql -U admin -d skill_connect_db < scripts/init-db.sql
+    docker-compose exec postgres psql -U admin -d skill_connect_db < scripts/create-additional-tables.sql
+
+
+Issue: Port already in use
+Solution:
+  # Windows
+  netstat -ano | findstr :3000
+  taskkill /PID [PID] /F
+  
+  # Linux/Mac
+  lsof -ti:3000 | xargs kill -9
+
+
+================================================================================
+PART 5: COMMON DOCKER COMMANDS
+================================================================================
+
+View all logs:
+  docker-compose logs -f
+
+View specific service logs:
+  docker-compose logs -f backend
+  docker-compose logs -f frontend
+  docker-compose logs -f postgres
+  docker-compose logs -f minio
+  docker-compose logs -f mailpit
+
+Stop all services:
+  docker-compose down
+
+Stop and remove data:
+  docker-compose down -v
+
+Restart a service:
+  docker-compose restart backend
+
+Access container shell:
+  docker-compose exec backend sh
+  docker-compose exec postgres sh
+
+Check container status:
+  docker-compose ps
+
+Rebuild images:
+  docker-compose up -d --build
+
+View Docker disk usage:
+  docker system df
+
+Clean up unused resources:
+  docker system prune -a
+
+
+================================================================================
+PART 6: FRONTEND PAGES OVERVIEW
+================================================================================
+
+1. Signup Page (/signup)
+   - Registration form with all user details
+   - Toast notifications for success/error
+   - Password hashing (bcryptjs)
+   - Auto-redirect to login on success
+
+2. Login Page (/login)
+   - Email and password validation
+   - Toast notifications
+   - Auto-redirect to dashboard on success
+   - Shows signup confirmation messages
+
+3. User Dashboard (/user-dashboard)
+   - User profile display
+   - Resume upload to MinIO
+   - View resume URL
+   - Messages section
+   - User list for messaging
+   - Real-time message polling
+   - Notifications
+
+4. Admin Dashboard (/admin-dashboard)
+   - User statistics charts
+   - Message sending to user groups
+   - QR code upload
+   - Admin controls
+
+5. Old Age Homes Page (/old-age-homes)
+   - List of old age homes
+   - Donation options
+   - Details and contact information
+
+6. Orphans Page (/orphans)
+   - List of orphan centers
+   - Donation options
+   - Beneficiary stories
+
+7. Payments Page (/payments)
+   - Payment processing
+   - Donation tracking
+   - Invoice generation
+
+8. Subscriptions Page (/subscriptions)
+   - Subscription plans
+   - Premium features
+   - Subscription management
+
+
+================================================================================
+PART 7: BACKEND API ENDPOINTS
+================================================================================
+
+AUTHENTICATION
+  POST   /api/signup              - User registration
+  POST   /api/login               - User login
+  POST   /api/forgot-password     - Password reset
+  GET    /api/user/:email         - Get user profile
+  PUT    /api/user/:email         - Update user profile
+
+USER MANAGEMENT
+  GET    /api/users               - Get all users
+  GET    /api/user-stats          - Get user statistics
+  GET    /api/resumes             - Get all resumes
+  GET    /api/user-resume         - Get specific resume
+  POST   /api/upload-resume       - Upload resume to MinIO
+
+MESSAGES
+  POST   /api/send-message        - Send message to users
+  GET    /api/messages/:from/:to  - Get messages between users
+  GET    /api/conversations/:id   - Get user conversations
+
+DONATIONS
+  POST   /api/donation            - Create donation
+  GET    /api/donations           - Get all donations
+  GET    /api/donations/:id       - Get specific donation
+
+OLD AGE HOMES
+  GET    /api/old-age-homes       - List all homes
+  POST   /api/old-age-homes       - Create new home
+  GET    /api/old-age-homes/:id   - Get home details
+
+ORPHANS
+  GET    /api/orphans             - List all centers
+  POST   /api/orphans             - Create new center
+  GET    /api/orphans/:id         - Get center details
+
+SUBSCRIPTIONS
+  GET    /api/subscriptions       - List plans
+  POST   /api/subscribe           - Create subscription
+  PUT    /api/subscription/:id    - Update subscription
+
+
+================================================================================
+PART 8: DATABASE SCHEMA
+================================================================================
+
+USERS TABLE
+  - id (UUID)
+  - email (VARCHAR)
+  - fullname (VARCHAR)
+  - password (VARCHAR hashed)
+  - company (VARCHAR)
+  - dob (DATE)
+  - city (VARCHAR)
+  - state (VARCHAR)
+  - country (VARCHAR)
+  - phone (VARCHAR)
+  - status (VARCHAR: employed, graduated, pursuing)
+  - qualification (VARCHAR)
+  - branch (VARCHAR)
+  - passoutyear (VARCHAR)
+  - profile_image_url (VARCHAR)
+  - bio (TEXT)
+  - is_premium (BOOLEAN)
+  - is_logged_in (BOOLEAN)
+  - created_at (TIMESTAMP)
+  - updated_at (TIMESTAMP)
+
+RESUMES TABLE
+  - id (UUID)
+  - email (VARCHAR)
+  - name (VARCHAR)
+  - resume_data (TEXT)
+  - resume_filename (VARCHAR)
+  - file_type (VARCHAR)
+  - file_size (INTEGER)
+  - file_url (VARCHAR) - MinIO URL
+  - created_at (TIMESTAMP)
+  - updated_at (TIMESTAMP)
+
+EMAIL_LOGS TABLE
+  - id (UUID)
+  - recipient_email (VARCHAR)
+  - subject (VARCHAR)
+  - body (TEXT)
+  - status (VARCHAR: sent, failed, pending)
+  - error_message (TEXT)
+  - sent_at (TIMESTAMP)
+  - created_at (TIMESTAMP)
+
+MESSAGES TABLE
+  - id (UUID)
+  - sender_id (UUID)
+  - receiver_id (UUID)
+  - content (TEXT)
+  - is_read (BOOLEAN)
+  - created_at (TIMESTAMP)
+
+DONATIONS TABLE
+  - id (UUID)
+  - donor_email (VARCHAR)
+  - donor_name (VARCHAR)
+  - amount (NUMERIC)
+  - currency (VARCHAR)
+  - category (VARCHAR: old-age-home, orphan, medical)
+  - status (VARCHAR: pending, completed, failed)
+  - transaction_id (VARCHAR)
+  - created_at (TIMESTAMP)
+
+OLD_AGE_HOMES TABLE
+  - id (UUID)
+  - name (VARCHAR)
+  - description (TEXT)
+  - address (TEXT)
+  - city (VARCHAR)
+  - state (VARCHAR)
+  - phone (VARCHAR)
+  - email (VARCHAR)
+  - residents_count (INTEGER)
+  - image_url (VARCHAR)
+  - created_at (TIMESTAMP)
+
+ORPHANS TABLE
+  - id (UUID)
+  - center_name (VARCHAR)
+  - description (TEXT)
+  - address (TEXT)
+  - city (VARCHAR)
+  - state (VARCHAR)
+  - phone (VARCHAR)
+  - email (VARCHAR)
+  - children_count (INTEGER)
+  - image_url (VARCHAR)
+  - created_at (TIMESTAMP)
+
+SUBSCRIPTIONS TABLE
+  - id (UUID)
+  - user_email (VARCHAR)
+  - plan_name (VARCHAR: basic, pro, premium)
+  - amount (NUMERIC)
+  - status (VARCHAR: active, inactive, cancelled)
+  - start_date (DATE)
+  - end_date (DATE)
+  - renewal_date (DATE)
+  - created_at (TIMESTAMP)
+
+
+================================================================================
+PART 9: SERVICES CONFIGURATION
+================================================================================
+
+MinIO (Object Storage)
+  Endpoint: http://localhost:9000
+  Access Key: minioadmin
+  Secret Key: minioadmin123
+  Bucket: skill-connect-bucket
+  Purpose: Store resumes, images, documents
+
+PostgreSQL (Database)
+  Host: localhost (or postgres in Docker)
+  Port: 5432
+  User: admin
+  Password: admin123
+  Database: skill_connect_db
+  Purpose: Store all application data
+
+Mailpit (Email Testing)
+  Web UI: http://localhost:8025
+  SMTP Host: localhost (or mailpit in Docker)
+  SMTP Port: 1025
+  Purpose: Capture and view emails in development
+
+Backend API
+  URL: http://localhost:5000
+  Environment: development
+  Purpose: Handle all business logic
+
+Frontend
+  URL: http://localhost:3000
+  Type: React
+  Purpose: User interface
+
+
+================================================================================
+PART 10: QUICK REFERENCE CHECKLIST
+================================================================================
+
+Before Starting:
+  [ ] Docker installed and running
+  [ ] Docker Compose installed
+  [ ] Port 3000, 5000, 5432, 9000, 8025, 9001 are free
+  [ ] At least 2GB free disk space
+
+First Run:
+  [ ] Run docker-compose up -d --build
+  [ ] Wait 60 seconds
+  [ ] Run database migrations
+  [ ] Verify all containers are running
+  [ ] Check all services are accessible
+
+Testing:
+  [ ] Test signup with valid email
+  [ ] Test login with correct credentials
+  [ ] Test resume upload
+  [ ] Check email in Mailpit
+  [ ] Verify data in PostgreSQL
+  [ ] Check files in MinIO
+
+Troubleshooting:
+  [ ] Check container logs
+  [ ] Verify port availability
+  [ ] Check environment variables
+  [ ] Restart individual services
+  [ ] Full clean restart if needed
+
+================================================================================
+CONTACT & SUPPORT
+================================================================================
+
+Issues: Check logs first - docker-compose logs [service]
+Database: Use psql to connect and verify
+Emails: Check Mailpit UI at http://localhost:8025
+Storage: Check MinIO UI at http://localhost:9001
+API: Check backend logs - docker-compose logs backend
+
+================================================================================
+END OF GUIDE
+================================================================================

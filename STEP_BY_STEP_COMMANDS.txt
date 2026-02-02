@@ -1,0 +1,321 @@
+================================================================================
+SKILL CONNECT - STEP BY STEP COMMANDS TO GET RUNNING
+================================================================================
+
+Copy and paste each command exactly as shown.
+Run commands from project root directory.
+
+
+STEP 1: CLEAN ENVIRONMENT (First Time Only)
+============================================
+
+docker-compose down -v
+
+docker system prune -a -f
+
+docker volume prune -f
+
+
+STEP 2: BUILD AND START CONTAINERS
+===================================
+
+docker-compose up -d --build
+
+WAIT 60 SECONDS - This is important for PostgreSQL to initialize
+
+
+STEP 3: VERIFY CONTAINERS ARE RUNNING
+======================================
+
+docker-compose ps
+
+You should see all containers with status "Up"
+
+
+STEP 4: INITIALIZE DATABASE
+============================
+
+docker-compose exec postgres psql -U admin -d skill_connect_db < scripts/init-db.sql
+
+Then run additional tables:
+
+docker-compose exec postgres psql -U admin -d skill_connect_db < scripts/create-additional-tables.sql
+
+
+STEP 5: VERIFY DATABASE SETUP
+==============================
+
+docker-compose exec postgres psql -U admin -d skill_connect_db -c "\dt"
+
+You should see these tables:
+- users
+- resumes
+- email_logs
+- messages
+- donations
+- old_age_homes
+- orphans
+- subscriptions
+
+
+STEP 6: VERIFY ALL SERVICES
+============================
+
+# Check backend logs
+docker-compose logs backend | tail -20
+
+# Check if database connected
+docker-compose logs backend | grep -i "database"
+
+# Check frontend
+docker-compose logs frontend | tail -20
+
+
+STEP 7: TEST SERVICES
+=====================
+
+# Test backend health
+curl http://localhost:5000/health
+
+# Test database
+docker-compose exec postgres psql -U admin -d skill_connect_db -c "SELECT COUNT(*) as user_count FROM users;"
+
+# Test MinIO
+curl http://localhost:9000
+
+# Test Mailpit
+curl http://localhost:8025
+
+
+STEP 8: OPEN APPLICATION
+========================
+
+Frontend: http://localhost:3000
+MinIO Web: http://localhost:9001 (minioadmin / minioadmin123)
+Mailpit: http://localhost:8025
+
+
+STEP 9: TEST SIGNUP
+===================
+
+1. Go to http://localhost:3000
+2. Click "Sign Up"
+3. Fill all fields:
+   - Email: test@example.com
+   - Full Name: Test User
+   - Password: Test@123456
+   - All other fields
+4. Click "Create Account"
+5. You should see green toast: "Account created successfully!"
+6. You should be redirected to login page
+
+
+STEP 10: VERIFY SIGNUP DATA
+============================
+
+docker-compose exec postgres psql -U admin -d skill_connect_db -c "SELECT email, fullname, created_at FROM users ORDER BY created_at DESC LIMIT 1;"
+
+You should see your signup data
+
+
+STEP 11: VERIFY EMAIL WAS SENT
+===============================
+
+Go to http://localhost:8025 in browser
+
+You should see "Welcome to Skill Connect" email
+
+
+STEP 12: TEST LOGIN
+===================
+
+1. Go to http://localhost:3000 (if not there already)
+2. Enter email: test@example.com
+3. Enter password: Test@123456
+4. Click "Login"
+5. You should see green toast: "Welcome back, Test User!"
+6. You should be redirected to User Dashboard
+
+
+STEP 13: TEST RESUME UPLOAD
+============================
+
+1. On User Dashboard, go to Resume section
+2. Click "Upload Resume"
+3. Select a PDF file (must be < 5MB)
+4. You should see green toast: "Resume uploaded successfully"
+5. File should appear in MinIO
+
+
+STEP 14: VERIFY RESUME IN MinIO
+================================
+
+1. Go to http://localhost:9001
+2. Login: minioadmin / minioadmin123
+3. Click "Object Browser"
+4. Click "skill-connect-bucket"
+5. You should see your resume file
+
+
+STEP 15: VIEW ALL UPLOADED RESUMES
+===================================
+
+docker-compose exec postgres psql -U admin -d skill_connect_db -c "SELECT email, file_url FROM resumes;"
+
+
+================================================================================
+TROUBLESHOOTING COMMANDS
+================================================================================
+
+If something doesn't work, use these commands:
+
+Check all logs:
+  docker-compose logs
+
+Check specific service:
+  docker-compose logs backend
+  docker-compose logs frontend
+  docker-compose logs postgres
+  docker-compose logs minio
+  docker-compose logs mailpit
+
+Restart specific service:
+  docker-compose restart backend
+  docker-compose restart frontend
+  docker-compose restart postgres
+
+View container status:
+  docker-compose ps
+
+Restart all:
+  docker-compose restart
+
+Stop all:
+  docker-compose down
+
+Full clean restart:
+  docker-compose down -v
+  docker-compose up -d --build
+  (Wait 60 seconds)
+
+Check database connection:
+  docker-compose exec postgres psql -U admin -d skill_connect_db -c "SELECT VERSION();"
+
+View all users:
+  docker-compose exec postgres psql -U admin -d skill_connect_db -c "SELECT * FROM users;"
+
+View all resumes:
+  docker-compose exec postgres psql -U admin -d skill_connect_db -c "SELECT * FROM resumes;"
+
+View emails sent:
+  docker-compose exec postgres psql -U admin -d skill_connect_db -c "SELECT * FROM email_logs;"
+
+Delete all test data (careful!):
+  docker-compose exec postgres psql -U admin -d skill_connect_db -c "DELETE FROM users; DELETE FROM resumes; DELETE FROM email_logs;"
+
+View backend errors only:
+  docker-compose logs backend 2>&1 | grep -i error
+
+View database errors:
+  docker-compose logs postgres 2>&1 | grep -i error
+
+
+================================================================================
+PORT TROUBLESHOOTING
+================================================================================
+
+If you get "port already in use" error:
+
+For Windows:
+  # Find process on port 3000
+  netstat -ano | findstr :3000
+  
+  # Kill process (replace PID)
+  taskkill /PID [PID] /F
+  
+  # Do same for other ports: 5000, 5432, 9000, 8025, 9001
+
+
+For Mac/Linux:
+  # Kill all conflicting processes
+  lsof -ti:3000 | xargs kill -9
+  lsof -ti:5000 | xargs kill -9
+  lsof -ti:5432 | xargs kill -9
+  lsof -ti:9000 | xargs kill -9
+  lsof -ti:8025 | xargs kill -9
+  lsof -ti:9001 | xargs kill -9
+
+
+================================================================================
+QUICK CHECKLIST
+================================================================================
+
+Before you start:
+  [ ] Docker is installed and running
+  [ ] Docker Compose is installed
+  [ ] You're in the project root directory
+  [ ] Ports 3000, 5000, 5432, 9000, 8025, 9001 are free
+
+First run:
+  [ ] Cleaned environment (docker-compose down -v)
+  [ ] Started containers (docker-compose up -d --build)
+  [ ] Waited 60 seconds
+  [ ] Verified containers running (docker-compose ps)
+  [ ] Ran database migrations
+  [ ] Verified tables exist
+
+Testing:
+  [ ] Frontend loads (http://localhost:3000)
+  [ ] Backend responds (http://localhost:5000/health)
+  [ ] Database accessible (psql connection works)
+  [ ] MinIO accessible (http://localhost:9001)
+  [ ] Mailpit accessible (http://localhost:8025)
+
+Application testing:
+  [ ] Signup works - data saves to database
+  [ ] Email appears in Mailpit
+  [ ] Login works - redirects to dashboard
+  [ ] Resume upload works - file in MinIO
+  [ ] Data verified in database
+
+If all checked, application is ready!
+
+
+================================================================================
+FINAL NOTES
+================================================================================
+
+1. IMPORTANT: Wait 60 seconds after starting containers - PostgreSQL needs time to initialize
+
+2. If database tables don't exist, re-run migrations:
+   docker-compose exec postgres psql -U admin -d skill_connect_db < scripts/init-db.sql
+
+3. If you get "Cannot connect to server" error, check:
+   - Backend is running: docker-compose ps
+   - Database is running: docker-compose ps
+   - Frontend .env has REACT_APP_API_URL=http://localhost:5000
+
+4. All files are stored in MinIO bucket "skill-connect-bucket"
+
+5. All emails are captured in Mailpit and logged in database
+
+6. For production, replace Mailpit with real SMTP service
+
+7. Access logs available in docker-compose logs [service]
+
+8. Database backups available in PostgreSQL container volumes
+
+================================================================================
+SUPPORT
+================================================================================
+
+Common issues and solutions in:
+- FINAL_COMPLETE_SETUP.txt
+- MAILPIT_EMAIL_SERVICE_SETUP.txt
+- IMPLEMENTATION_GUIDE.txt
+
+All detailed documentation available in root directory.
+
+================================================================================
+END OF COMMANDS
+================================================================================

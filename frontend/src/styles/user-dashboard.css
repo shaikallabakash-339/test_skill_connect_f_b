@@ -1,4 +1,4 @@
-/* User Dashboard Styles */
+/* User Dashboard Styles - Complete Layout Fix */
 
 :root {
   --primary-color: #4f46e5;
@@ -24,16 +24,24 @@
   box-sizing: border-box;
 }
 
+html, body, #root {
+  height: 100%;
+  width: 100%;
+}
+
 body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
   background-color: var(--background-color);
   color: var(--text-primary);
+  overflow: hidden;
 }
 
 .user-dashboard {
   display: flex;
   height: 100vh;
+  width: 100%;
   background-color: var(--background-color);
+  overflow: hidden;
 }
 
 /* SIDEBAR STYLES */
@@ -238,6 +246,33 @@ body {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  width: 100%;
+  height: 100vh;
+}
+
+.content-area {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 24px;
+  background-color: var(--background-color);
+}
+
+.content-area::-webkit-scrollbar {
+  width: 8px;
+}
+
+.content-area::-webkit-scrollbar-track {
+  background: var(--background-color);
+}
+
+.content-area::-webkit-scrollbar-thumb {
+  background: var(--border-color);
+  border-radius: 4px;
+}
+
+.content-area::-webkit-scrollbar-thumb:hover {
+  background: var(--text-secondary);
 }
 
 /* TOP NAVBAR */
@@ -278,6 +313,107 @@ body {
   display: flex;
   align-items: center;
   gap: 12px;
+}
+
+/* HOME TAB STYLES */
+.home-tab {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+  width: 100%;
+}
+
+.profile-card {
+  background: var(--surface-color);
+  border-radius: 12px;
+  padding: 24px;
+  box-shadow: var(--shadow-md);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.profile-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.profile-image {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-weight: bold;
+  font-size: 32px;
+}
+
+.profile-info {
+  flex: 1;
+}
+
+.profile-info h3 {
+  font-size: 18px;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.profile-info p {
+  color: var(--text-secondary);
+  font-size: 14px;
+}
+
+.resume-section {
+  background: var(--surface-color);
+  border-radius: 12px;
+  padding: 24px;
+  box-shadow: var(--shadow-md);
+}
+
+.resume-section h3 {
+  font-size: 18px;
+  font-weight: 600;
+  margin-bottom: 16px;
+}
+
+.upload-area {
+  border: 2px dashed var(--border-color);
+  border-radius: 8px;
+  padding: 24px;
+  text-align: center;
+  cursor: pointer;
+  transition: var(--transition);
+  background: var(--background-color);
+}
+
+.upload-area:hover {
+  border-color: var(--primary-color);
+  background: rgba(79, 70, 229, 0.05);
+}
+
+.upload-input {
+  display: none;
+}
+
+.upload-label {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+}
+
+.upload-label svg {
+  color: var(--primary-color);
+}
+
+.upload-label p {
+  color: var(--text-secondary);
+  font-size: 14px;
 }
 
 .search-button {

@@ -1,0 +1,457 @@
+================================================================================
+MAILPIT EMAIL SERVICE CONFIGURATION & SETUP GUIDE
+================================================================================
+
+Email service is critical for:
+- User registration confirmations
+- Password reset emails
+- Donation receipts
+- Admin notifications
+- System alerts
+
+================================================================================
+PART 1: MAILPIT SETUP (Development)
+================================================================================
+
+Mailpit is running in Docker automatically. No additional setup needed!
+
+Access Mailpit Web UI:
+- URL: http://localhost:8025
+- No login required
+- View all captured emails in real-time
+
+
+================================================================================
+PART 2: BACKEND EMAIL SERVICE CONFIGURATION
+================================================================================
+
+Email Configuration File: /backend/utils/emailService.js
+
+Key Components:
+
+1. Transport Configuration
+   - Host: mailpit (Docker) or localhost (local dev)
+   - Port: 1025 (SMTP)
+   - Auth: None (Mailpit doesn't require authentication)
+
+2. Email Templates
+   - User registration: "Welcome to Skill Connect"
+   - Password reset: "Reset your password"
+   - Donation receipt: "Thank you for your donation"
+   - Admin alert: "New admin action"
+
+3. Service Methods
+   - initializeEmailService() - Initialize email transport
+   - sendSignupEmail(email, name) - Send signup confirmation
+   - sendPasswordResetEmail(email, resetLink) - Send password reset
+   - sendDonationReceipt(email, amount, category) - Send receipt
+   - sendAdminNotification(adminEmail, message) - Send admin alert
+
+
+================================================================================
+PART 3: HOW EMAILS ARE SENT IN THE APPLICATION
+================================================================================
+
+SIGNUP EMAIL FLOW
+------------------
+1. User fills signup form and clicks "Create Account"
+2. Frontend sends POST /api/signup with user data
+3. Backend:
+   - Validates input
+   - Hashes password
+   - Inserts user into database
+   - Calls sendSignupEmail(email, name)
+4. Email service:
+   - Creates HTML email template
+   - Sends via Mailpit SMTP
+   - Logs to email_logs table
+5. Mailpit captures email
+   - View in http://localhost:8025
+   - Email appears in inbox
+
+CODE EXAMPLE:
+```javascript
+// In auth.js after successful signup
+const { sendSignupEmail } = require('../utils/emailService');
+
+try {
+  const result = await pool.query(query, values);
+  const newUser = result.rows[0];
+  
+  // Send welcome email
+  await sendSignupEmail(newUser.email, newUser.fullname);
+  
+  res.status(201).json({ success: true, user: newUser });
+} catch (err) {
+  // Error handling
+}
+```
+
+
+DONATION EMAIL FLOW
+--------------------
+1. User completes donation form
+2. Frontend sends POST /api/donation
+3. Backend:
+   - Validates donation data
+   - Processes payment
+   - Inserts donation record
+   - Sends receipt email
+4. Email service creates receipt with:
+   - Transaction ID
+   - Amount
+   - Category
+   - Beneficiary info
+5. User receives email confirmation
+
+
+PASSWORD RESET FLOW
+-------------------
+1. User clicks "Forgot Password" on login page
+2. User enters email
+3. Backend:
+   - Generates reset token
+   - Creates reset link: /reset-password?token=xxx
+   - Sends email with link
+4. User clicks link
+5. User sets new password
+6. System sends confirmation email
+
+
+================================================================================
+PART 4: EMAIL TEMPLATES
+================================================================================
+
+All email templates are HTML-based and include:
+- Professional styling
+- Brand colors (indigo & pink)
+- Responsive design
+- Clear call-to-action buttons
+- Contact information
+
+AVAILABLE TEMPLATES:
+
+1. Welcome Email (Signup)
+   Subject: "Welcome to Skill Connect!"
+   Content:
+   - Welcome message
+   - User name
+   - Account activation
+   - Getting started guide
+   - Support email
+
+2. Password Reset Email
+   Subject: "Reset Your Skill Connect Password"
+   Content:
+   - Password reset request
+   - Reset link (valid 24 hours)
+   - Security warning
+   - Support contact
+
+3. Donation Receipt
+   Subject: "Thank You for Your Donation!"
+   Content:
+   - Donation amount
+   - Category (old-age-home, orphan, medical)
+   - Transaction ID
+   - Tax receipt info
+   - Impact message
+
+4. Admin Notification
+   Subject: "New Activity - Skill Connect Admin"
+   Content:
+   - Activity type
+   - Details
+   - Action required (if any)
+   - Dashboard link
+
+
+================================================================================
+PART 5: VIEWING EMAILS IN MAILPIT
+================================================================================
+
+Step-by-Step:
+
+1. Open http://localhost:8025 in browser
+
+2. You'll see inbox with all captured emails
+
+3. Click any email to view:
+   - Full HTML rendering
+   - Email headers
+   - Raw source
+   - Headers inspector
+
+4. Features:
+   - Search emails by sender/subject
+   - Filter by date
+   - Download email as EML
+   - Automatic refresh
+
+5. Testing Flow:
+   - Perform action (signup, donation, etc)
+   - Refresh Mailpit UI
+   - See email appear in inbox
+   - Click to view content
+
+
+================================================================================
+PART 6: DATABASE EMAIL LOGGING
+================================================================================
+
+All emails are logged in email_logs table:
+
+Schema:
+```sql
+CREATE TABLE email_logs (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  recipient_email VARCHAR NOT NULL,
+  subject VARCHAR,
+  body TEXT,
+  status VARCHAR DEFAULT 'pending', -- pending, sent, failed
+  error_message TEXT,
+  sent_at TIMESTAMP,
+  created_at TIMESTAMP DEFAULT NOW()
+);
+```
+
+Query Examples:
+
+View all sent emails:
+```bash
+docker-compose exec postgres psql -U admin -d skill_connect_db \
+  -c "SELECT recipient_email, subject, status FROM email_logs ORDER BY created_at DESC;"
+```
+
+View failed emails:
+```bash
+docker-compose exec postgres psql -U admin -d skill_connect_db \
+  -c "SELECT recipient_email, subject, error_message FROM email_logs WHERE status='failed';"
+```
+
+View emails for specific user:
+```bash
+docker-compose exec postgres psql -U admin -d skill_connect_db \
+  -c "SELECT * FROM email_logs WHERE recipient_email='user@example.com';"
+```
+
+
+================================================================================
+PART 7: ENVIRONMENT VARIABLES
+================================================================================
+
+Backend .env Settings:
+
+# Email Configuration
+MAILPIT_HOST=mailpit           # Docker container name
+MAILPIT_PORT=1025            # SMTP port
+MAILPIT_API_URL=http://mailpit:8025  # API endpoint
+EMAIL_FROM=noreply@skillconnect.com  # From address
+
+For local development (without Docker):
+MAILPIT_HOST=localhost
+
+
+================================================================================
+PART 8: TESTING EMAIL FUNCTIONALITY
+================================================================================
+
+Test 1: Signup Email
+---------------------
+Steps:
+1. Go to http://localhost:3000/signup
+2. Fill form with test data
+3. Click "Create Account"
+4. Go to http://localhost:8025
+5. You should see "Welcome to Skill Connect!" email
+
+Expected:
+- Email appears in Mailpit inbox
+- Contains user's full name
+- Professional HTML formatting
+- "Get Started" button
+
+
+Test 2: Password Reset Email
+-----------------------------
+Steps:
+1. Go to http://localhost:3000/login
+2. Click "Forgot Password"
+3. Enter email from signup
+4. Go to http://localhost:8025
+5. You should see password reset email
+
+Expected:
+- Email with reset link
+- Link is clickable
+- Token in URL
+
+
+Test 3: Donation Receipt
+------------------------
+Steps:
+1. Login and go to donations page
+2. Complete donation form
+3. Submit
+4. Check Mailpit
+
+Expected:
+- Receipt email with amount
+- Transaction ID
+- Beneficiary details
+
+
+Test 4: Check Email Logs
+------------------------
+```bash
+# View all emails sent in last hour
+docker-compose exec postgres psql -U admin -d skill_connect_db \
+  -c "SELECT recipient_email, subject, status, sent_at FROM email_logs WHERE sent_at > NOW() - INTERVAL '1 hour' ORDER BY sent_at DESC;"
+```
+
+
+================================================================================
+PART 9: PRODUCTION EMAIL SETUP
+================================================================================
+
+For production, replace Mailpit with real SMTP service:
+
+Option 1: SendPulse (Configured in .env.example)
+```
+SENDPULSE_HOST=smtp.sendpulse.com
+SENDPULSE_PORT=587
+SENDPULSE_USER=your_email@sendpulse.com
+SENDPULSE_PASS=your_password
+```
+
+Option 2: Gmail SMTP
+```
+GMAIL_HOST=smtp.gmail.com
+GMAIL_PORT=587
+GMAIL_USER=your_email@gmail.com
+GMAIL_PASS=app_password (not regular password)
+```
+
+Option 3: AWS SES
+```
+AWS_SES_REGION=us-east-1
+AWS_SES_ACCESS_KEY=your_key
+AWS_SES_SECRET_KEY=your_secret
+```
+
+To switch: Update /backend/utils/emailService.js transport configuration
+
+
+================================================================================
+PART 10: TROUBLESHOOTING EMAIL ISSUES
+================================================================================
+
+Issue: Emails not appearing in Mailpit
+Solution:
+  1. Check Mailpit is running: docker-compose ps mailpit
+  2. Check backend logs: docker-compose logs backend | grep -i mail
+  3. Verify SMTP connection: docker-compose exec backend curl telnet mailpit:1025
+  4. Check emailService.js is initialized
+  5. Restart Mailpit: docker-compose restart mailpit
+
+
+Issue: "Failed to send email" error
+Solution:
+  1. Check Mailpit SMTP port is 1025: docker-compose logs mailpit | grep 1025
+  2. Check environment variables: docker-compose exec backend printenv | grep MAIL
+  3. Verify transport configuration in emailService.js
+  4. Check email format is valid
+
+
+Issue: HTML formatting broken in emails
+Solution:
+  1. Check email template HTML syntax
+  2. Verify CSS is inline (Mailpit may strip external CSS)
+  3. Test with simple template first
+  4. Use HTML email validator
+
+
+Issue: Emails sent but not showing in logs
+Solution:
+  1. Verify email_logs table exists: docker-compose exec postgres psql -U admin -d skill_connect_db -c "\dt email_logs"
+  2. Check INSERT query in emailService.js
+  3. Verify database connection
+  4. Check if logging is enabled
+
+
+================================================================================
+PART 11: EMAIL SERVICE API
+================================================================================
+
+Core Functions Available:
+
+1. sendSignupEmail(email, name)
+   Purpose: Send welcome email after signup
+   Usage: await sendSignupEmail('user@example.com', 'John Doe')
+   Returns: { success: boolean, messageId: string, error?: string }
+
+2. sendPasswordResetEmail(email, resetLink)
+   Purpose: Send password reset link
+   Usage: await sendPasswordResetEmail('user@example.com', 'http://localhost:3000/reset?token=xxx')
+   Returns: { success: boolean, messageId: string, error?: string }
+
+3. sendDonationReceipt(email, amount, category)
+   Purpose: Send donation receipt
+   Usage: await sendDonationReceipt('user@example.com', 500, 'old-age-home')
+   Returns: { success: boolean, messageId: string, error?: string }
+
+4. sendAdminNotification(adminEmail, message)
+   Purpose: Send notification to admin
+   Usage: await sendAdminNotification('admin@skillconnect.com', 'New donation: $500')
+   Returns: { success: boolean, messageId: string, error?: string }
+
+
+================================================================================
+PART 12: QUICK REFERENCE
+================================================================================
+
+Common Tasks:
+
+View emails in browser:
+  http://localhost:8025
+
+Test email sending:
+  1. Perform action (signup, donation)
+  2. Check Mailpit inbox
+
+Check email logs:
+  docker-compose exec postgres psql -U admin -d skill_connect_db \
+    -c "SELECT recipient_email, subject, status FROM email_logs LIMIT 10;"
+
+View specific user emails:
+  docker-compose exec postgres psql -U admin -d skill_connect_db \
+    -c "SELECT * FROM email_logs WHERE recipient_email='user@email.com';"
+
+Check Mailpit logs:
+  docker-compose logs mailpit
+
+Restart email service:
+  docker-compose restart mailpit
+
+View backend email errors:
+  docker-compose logs backend | grep -i 'email\|mail'
+
+
+================================================================================
+CONCLUSION
+================================================================================
+
+Email service is fully configured and working:
+- Mailpit captures all emails in development
+- Database logs all email attempts
+- Templates are professional and responsive
+- Production SMTP can be easily swapped in
+
+No additional configuration needed unless:
+- Moving to production (use SendPulse, Gmail, or AWS SES)
+- Changing email templates
+- Adding new email types
+
+================================================================================
+END OF GUIDE
+================================================================================

@@ -1,0 +1,420 @@
+=====================================================
+SKILL CONNECT - QUICK REFERENCE OF ALL CHANGES
+=====================================================
+
+FILES UPDATED:
+1. ✅ /frontend/src/pages/UserDashboard.tsx - STEP 1 COMPLETE
+2. ✅ /frontend/src/components/PaymentModal.tsx - STEP 2 COMPLETE
+3. ✅ /frontend/src/components/AdminSubscriptions.tsx - STEP 2B COMPLETE
+4. ⏳ /frontend/src/pages/AdminDashboard.tsx - STEP 3 TODO
+5. ⏳ /frontend/src/pages/OldAgeHomes.tsx - STEP 4 TODO
+6. ⏳ /frontend/src/pages/Orphans.tsx - STEP 5 TODO
+7. ⏳ /frontend/src/components/UserProfileDropdown.tsx - STEP 6 TODO
+
+DOCUMENTATION CREATED:
+- /USER_DASHBOARD_UPDATE.md - Details of Step 1
+- /COMPLETE_STEP_BY_STEP_UPDATES.md - Full implementation roadmap
+- /QUICK_REFERENCE_CHANGES.txt - This file
+
+=====================================================
+STEP 1: USER DASHBOARD ✅ COMPLETE
+=====================================================
+
+NEW FEATURES:
+✓ Profile photo upload to MinIO
+✓ Profile dropdown with Account/Premium/Exit sections
+✓ Top 5 companies suggestion panel
+✓ Premium subscription system
+✓ Conversation limit badge (5/5 or ∞)
+✓ Enhanced resume display from MinIO
+✓ Real-time messaging with polling
+
+CHANGES MADE:
+- Added PaymentModal import
+- Added isPremium, showPaymentModal state
+- Added profileImageFile, uploadingImage state
+- Added handleProfileImageUpload function
+- Updated sidebar-profile class to "sidebar-profile enhanced"
+- Changed profile image display logic
+- Added profile settings dropdown with sections
+- Added company suggestions section
+- Updated navigation badges with premium indicator
+- Updated resume display to show file type, size, date
+- Added MinIO URL support for resume downloads
+- Added PaymentModal component at end
+
+KEY INTEGRATION:
+- MinIO: Profile images, resume files
+- PostgreSQL: User data, resume metadata, conversations
+- Mailpit: Email notifications
+- Real-time: 3-second polling for messages
+
+=====================================================
+STEP 2: PAYMENT MODAL ✅ COMPLETE
+=====================================================
+
+NEW FEATURES:
+✓ 3-step subscription flow
+✓ Plan selection with pricing
+✓ Payment screenshot upload to MinIO
+✓ Transaction ID verification
+✓ QR code display
+✓ Email confirmation integration
+✓ Error handling
+
+CHANGES MADE:
+- Updated fetchPlans to use process.env.REACT_APP_API_URL
+- Updated handleSubmitPayment to:
+  - Use correct API URL
+  - Add email and type to upload
+  - Include logging
+  - Send plan name and amount to backend
+  - Better error handling
+  - Validate success response
+
+KEY INTEGRATION:
+- MinIO: Payment screenshot upload
+- PostgreSQL: Store subscription requests
+- Email: Send confirmation via Mailpit/SendPulse
+- API: /api/subscriptions/request endpoint
+
+=====================================================
+STEP 2B: ADMIN SUBSCRIPTIONS ✅ COMPLETE
+=====================================================
+
+FIXES APPLIED:
+✓ Fixed typo: setP endingRequests → setPendingRequests
+✓ Updated API URLs to use process.env.REACT_APP_API_URL
+✓ Fixed fetchSubscriptions logic
+✓ Updated handleApprove function signature
+✓ Updated handleReject function signature
+✓ Added email notifications on approval/rejection
+✓ Fixed button handlers
+
+KEY CHANGES:
+- Fetch from database with error handling
+- Approve sends email to user
+- Reject sends email with reason
+- Both update subscription status in PostgreSQL
+- MinIO screenshot display via URL
+
+KEY INTEGRATION:
+- PostgreSQL: Read/update subscriptions table
+- Email: Send approval/rejection emails
+- MinIO: Display payment screenshot
+- API: /api/subscriptions/admin endpoints
+
+=====================================================
+ENVIRONMENT VARIABLES NEEDED
+=====================================================
+
+Frontend (.env):
+REACT_APP_API_URL=http://localhost:5000
+
+Backend (.env):
+NODE_ENV=development
+PORT=5000
+DB_HOST=postgres
+DB_PORT=5432
+DB_USER=admin
+DB_PASSWORD=admin123
+DB_NAME=skill_connect_db
+
+MINIO_ENDPOINT=minio
+MINIO_PORT=9000
+MINIO_ROOT_USER=minioadmin
+MINIO_ROOT_PASSWORD=minioadmin
+MINIO_BUCKET=skill-connect
+
+EMAIL_HOST=mailpit
+EMAIL_PORT=1025
+EMAIL_SECURE=false
+EMAIL_FROM=noreply@skillconnect.com
+
+=====================================================
+DATABASE TABLES STRUCTURE
+=====================================================
+
+USERS TABLE (updated):
+- id (primary key)
+- email (unique)
+- fullname
+- company (NEW)
+- profile_image_url (NEW - MinIO)
+- phone, city, state, country
+- qualification, branch, passout_year
+- status (employed, pursuing, graduated)
+- subscription_status (free, premium)
+- created_at, updated_at
+
+RESUMES TABLE (new):
+- id (primary key)
+- email (foreign key)
+- resume_filename
+- file_type (pdf, docx, doc)
+- file_size
+- file_url (MinIO URL)
+- resume_data (extracted text)
+- created_at, updated_at
+
+SUBSCRIPTIONS TABLE (new):
+- id (primary key)
+- user_id, email (foreign key)
+- plan_id
+- payment_screenshot_url (MinIO)
+- transaction_proof
+- status (pending, active, rejected)
+- start_date, end_date
+- created_at, updated_at
+
+OLD_AGE_HOMES TABLE (new):
+- id (primary key)
+- name, location, description
+- image_url (MinIO)
+- qr_url (MinIO)
+- contact_phone, contact_email
+- created_at
+
+ORPHANS TABLE (new):
+- id (primary key)
+- name, location, description
+- image_url (MinIO)
+- qr_url (MinIO)
+- contact_phone, contact_email
+- created_at
+
+DONATIONS TABLE (new):
+- id (primary key)
+- donor_name, donor_email, donor_phone
+- amount, type (old-age, orphan)
+- item_id, item_name
+- payment_screenshot_url (MinIO)
+- status (pending, confirmed)
+- created_at
+
+NOTIFICATIONS TABLE (new):
+- id (primary key)
+- user_id (foreign key)
+- title, message
+- category, status
+- created_at
+
+SUBSCRIPTION_PLANS TABLE (new):
+- id (primary key)
+- name (Basic, Premium, Pro)
+- price, duration_months
+- max_conversations, max_resumes
+- priority_support
+- created_at
+
+=====================================================
+MINIO FILE STORAGE STRUCTURE
+=====================================================
+
+Bucket: skill-connect
+
+Folders:
+/profile-images/{email}/{timestamp}-{filename}
+/resumes/{email}/{timestamp}-{filename}
+/payment-proofs/{user_id}/{timestamp}-{filename}
+/donations/{donation_id}/{timestamp}-{filename}
+/homes-images/{home_id}/{timestamp}-{filename}
+/orphans-images/{orphan_id}/{timestamp}-{filename}
+/qr-codes/{item_id}/{timestamp}-{filename}
+
+All files return presigned URLs (time-limited)
+URLs stored in PostgreSQL for persistence
+
+=====================================================
+EMAIL SERVICE IMPLEMENTATION
+=====================================================
+
+Development (Mailpit):
+- Catches all emails at http://localhost:8025
+- No setup needed, runs in Docker
+- SMTP: localhost:1025
+- Preview emails in UI
+
+Production (SendPulse):
+- Max 12,000 emails/month
+- Max 300 active users
+- If users > 300: Don't send more emails
+- Create email templates:
+  * Welcome Email
+  * Subscription Approved
+  * Subscription Rejected
+  * Donation Receipt
+  * Notification from Admin
+
+Implementation:
+const sendEmail = async (to, subject, html) => {
+  // Check user count
+  const userCount = await db.query('SELECT COUNT(*) FROM users');
+  if (userCount > 300) {
+    console.warn('User limit exceeded. Email not sent.');
+    return;
+  }
+  
+  // Send via Mailpit/SendPulse
+  await transporter.sendMail({
+    from: 'noreply@skillconnect.com',
+    to,
+    subject,
+    html
+  });
+};
+
+=====================================================
+API ENDPOINTS IMPLEMENTED
+=====================================================
+
+✅ USER ENDPOINTS:
+GET  /api/user/{email}
+GET  /api/users
+POST /api/upload-profile-image
+POST /api/upload-resume
+GET  /api/resumes/{email}
+GET  /api/conversations/{userId}
+POST /api/send-message
+GET  /api/messages/{senderId}/{receiverId}
+GET  /api/notifications/{userId}
+
+✅ SUBSCRIPTION ENDPOINTS:
+GET  /api/subscriptions/plans
+POST /api/subscriptions/request
+GET  /api/subscriptions/admin/pending
+GET  /api/subscriptions/admin/all
+POST /api/subscriptions/admin/approve/{id}
+POST /api/subscriptions/admin/reject/{id}
+POST /api/send-subscription-email
+
+⏳ TODO ENDPOINTS:
+POST /api/upload-file (generic)
+POST /api/upload-qr
+GET  /api/old-age-homes
+POST /api/old-age-homes (admin)
+GET  /api/orphans
+POST /api/orphans (admin)
+POST /api/donate
+GET  /api/donations-stats
+GET  /api/old-age-homes-stats
+GET  /api/orphans-stats
+GET  /api/message-stats
+POST /api/send-message (admin broadcast)
+
+=====================================================
+TESTING CHECKLIST
+=====================================================
+
+USER DASHBOARD:
+□ Upload profile image → appears in sidebar
+□ Click settings → dropdown shows options
+□ Click upgrade premium → payment modal opens
+□ Select plan → step 2 payment
+□ Upload screenshot → uploads to MinIO
+□ Submit → sees confirmation
+□ Download resume → works from MinIO URL
+□ Messages 5+ people (free) → warning shows
+□ Send message → appears in chat
+□ Admin message appears → in notifications
+
+PAYMENT MODAL:
+□ Plans load from database
+□ Select plan → step 2
+□ Upload screenshot → validates file
+□ Enter transaction ID → validates input
+□ Submit → success message
+□ Email sent → check Mailpit at :8025
+
+ADMIN SUBSCRIPTIONS:
+□ Pending requests show → from database
+□ Approve subscription → email sent, status updated
+□ Reject subscription → email with reason, status updated
+□ View screenshot → MinIO URL works
+□ Filter by status → works
+
+=====================================================
+DOCKER COMMANDS (QUICK START)
+=====================================================
+
+Start all services:
+docker-compose up -d --build
+
+Check service health:
+docker-compose ps
+
+View logs:
+docker-compose logs frontend
+docker-compose logs backend
+docker-compose logs postgres
+docker-compose logs minio
+docker-compose logs mailpit
+
+Database access:
+docker-compose exec postgres psql -U admin -d skill_connect_db
+
+Minio access:
+http://localhost:9001 (username: minioadmin, password: minioadmin)
+
+Mailpit access:
+http://localhost:8025 (view emails)
+
+Frontend:
+http://localhost:3000
+
+Backend API:
+http://localhost:5000
+
+Clean restart:
+docker-compose down -v
+docker-compose up -d --build
+
+=====================================================
+NEXT IMMEDIATE TASKS
+=====================================================
+
+1. Run database migrations for new tables
+   - Copy SQL from COMPLETE_STEP_BY_STEP_UPDATES.md
+   - Run in PostgreSQL container
+
+2. Update Admin Dashboard endpoints
+   - Fix database queries
+   - Add messaging system
+   - Add QR upload
+
+3. Update Old Age Homes page
+   - Fetch from database
+   - Display MinIO images
+   - Add donation functionality
+
+4. Update Orphans page
+   - Same as Old Age Homes
+
+5. Create Home Page
+   - Hero section
+   - Features section
+   - Stats section
+   - CTA buttons
+
+6. Create Backend API routes for missing endpoints
+
+7. Test full flow: Register → Upload Resume → Payment → Donation
+
+=====================================================
+SUPPORT RESOURCES
+=====================================================
+
+User Dashboard Docs: /USER_DASHBOARD_UPDATE.md
+Full Implementation Plan: /COMPLETE_STEP_BY_STEP_UPDATES.md
+This Quick Reference: /QUICK_REFERENCE_CHANGES.txt
+
+All files use:
+- MinIO for storage
+- PostgreSQL for data
+- Mailpit for email (dev)
+- SendPulse for email (prod)
+- Framer Motion for animations
+- Axios for API calls
+- React Router for navigation
+
+=====================================================
